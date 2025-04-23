@@ -123,16 +123,51 @@ class Game {
     this.handleResize();
   }
   
-  // Set up mobile touch controls with swipe support
+  // Set up mobile touch controls
   setupMobileControls() {
+    // Direction buttons
+    const upBtn = document.getElementById('up-btn');
+    const rightBtn = document.getElementById('right-btn');
+    const downBtn = document.getElementById('down-btn');
+    const leftBtn = document.getElementById('left-btn');
+    
     // Action buttons
     const fogBtn = document.getElementById('fog-btn');
     const resetBtn = document.getElementById('reset-btn');
     
-    // Setup swipe detection on canvas
-    this.setupSwipeControls();
+    // Add touch event listeners
+    if (upBtn) {
+      upBtn.addEventListener('click', () => this.handleMove('up'));
+      upBtn.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        this.handleMove('up');
+      });
+    }
     
-    // Action button event listeners
+    if (rightBtn) {
+      rightBtn.addEventListener('click', () => this.handleMove('right'));
+      rightBtn.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        this.handleMove('right');
+      });
+    }
+    
+    if (downBtn) {
+      downBtn.addEventListener('click', () => this.handleMove('down'));
+      downBtn.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        this.handleMove('down');
+      });
+    }
+    
+    if (leftBtn) {
+      leftBtn.addEventListener('click', () => this.handleMove('left'));
+      leftBtn.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        this.handleMove('left');
+      });
+    }
+    
     if (fogBtn) {
       fogBtn.addEventListener('click', () => this.maze.toggleFogOfWar());
       fogBtn.addEventListener('touchstart', (e) => {
@@ -148,75 +183,6 @@ class Game {
         this.init();
       });
     }
-  }
-  
-  // Setup swipe controls for smooth movement
-  setupSwipeControls() {
-    // Swipe state
-    let touchStartX = 0;
-    let touchStartY = 0;
-    let isSwiping = false;
-    let lastMoveTime = 0;
-    const moveDelay = 200; // Delay between moves in ms
-    
-    // Attach touch events to canvas
-    this.canvas.addEventListener('touchstart', (e) => {
-      const touch = e.touches[0];
-      touchStartX = touch.clientX;
-      touchStartY = touch.clientY;
-      isSwiping = true;
-      
-      // Prevent default to avoid scrolling
-      e.preventDefault();
-    });
-    
-    this.canvas.addEventListener('touchmove', (e) => {
-      if (!isSwiping) return;
-      
-      const now = Date.now();
-      if (now - lastMoveTime < moveDelay) return; // Throttle moves
-      
-      const touch = e.touches[0];
-      const deltaX = touch.clientX - touchStartX;
-      const deltaY = touch.clientY - touchStartY;
-      
-      // Determine which direction has the largest movement
-      const absDeltaX = Math.abs(deltaX);
-      const absDeltaY = Math.abs(deltaY);
-      
-      // Required minimum swipe distance
-      const minSwipeDistance = 20;
-      
-      let direction = null;
-      
-      if (Math.max(absDeltaX, absDeltaY) > minSwipeDistance) {
-        if (absDeltaX > absDeltaY) {
-          // Horizontal swipe
-          direction = deltaX > 0 ? 'right' : 'left';
-        } else {
-          // Vertical swipe
-          direction = deltaY > 0 ? 'down' : 'up';
-        }
-        
-        // Process the move
-        if (direction && this.handleMove(direction)) {
-          // Move succeeded, update start position to enable continuous swiping
-          touchStartX = touch.clientX;
-          touchStartY = touch.clientY;
-          lastMoveTime = now;
-        }
-      }
-      
-      e.preventDefault();
-    });
-    
-    this.canvas.addEventListener('touchend', () => {
-      isSwiping = false;
-    });
-    
-    this.canvas.addEventListener('touchcancel', () => {
-      isSwiping = false;
-    });
   }
   
   // Handle window resize for responsive sizing
@@ -246,7 +212,6 @@ class Game {
   }
   
   handleMove(direction) {
-    // Try to move in the given direction
     if (this.player.move(direction)) {
       // Check if player collected anything
       const collectedType = this.collectibles.checkCollection(this.player.x, this.player.y);
@@ -263,13 +228,7 @@ class Game {
           this.showVictoryScreen();
         }, 300);
       }
-      
-      // Return true to indicate the move was successful
-      return true;
     }
-    
-    // Return false if move failed (hit a wall)
-    return false;
   }
   
   gameLoop(timestamp) {
@@ -331,30 +290,16 @@ class Game {
 document.addEventListener('DOMContentLoaded', () => {
   const game = new Game('mazeCanvas');
   
-  // Detect if using touch device for appropriate instructions
-  const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
-  
   // Add game instructions with pixelated styling
   const gameContainer = document.querySelector('.game-container');
   const instructions = document.createElement('div');
   instructions.className = 'instructions';
-  
-  // Different instructions based on device type
-  if (isTouchDevice) {
-    instructions.innerHTML = `
-      <p>► SWIPE ON MAZE TO MOVE</p>
-      <p>► COLLECT ALL KEYS (${game.keyCount}) TO UNLOCK THE EXIT</p>
-      <p>► TAP FOG BUTTON TO TOGGLE VISIBILITY</p>
-      <p>► TAP RESET TO RESTART THE MAZE</p>
-    `;
-  } else {
-    instructions.innerHTML = `
-      <p>► USE ARROW KEYS TO MOVE</p>
-      <p>► COLLECT ALL KEYS (${game.keyCount}) TO UNLOCK THE EXIT</p>
-      <p>► PRESS F TO TOGGLE FOG-OF-WAR</p>
-      <p>► PRESS R TO RESET THE MAZE</p>
-    `;
-  }
+  instructions.innerHTML = `
+    <p>► USE ARROW KEYS TO MOVE</p>
+    <p>► COLLECT ALL KEYS (${game.keyCount}) TO UNLOCK THE EXIT</p>
+    <p>► PRESS F TO TOGGLE FOG-OF-WAR</p>
+    <p>► PRESS R TO RESET THE MAZE</p>
+  `;
   gameContainer.appendChild(instructions);
   
   // Add pixel grain effect to entire page

@@ -122,26 +122,28 @@ canvas {
   margin: 4px 0;
 }
 
-.swipe-hint {
-  width: 100%;
-  padding: 10px;
-  margin: 10px 0;
+.direction-btn {
+  width: 60px;
+  height: 60px;
+  margin: 0 5px;
   background-color: #2a3a4a;
   border: 2px solid #405060;
   border-radius: 10px;
   color: #9acdff;
-  font-size: 20px;
-  text-align: center;
+  font-size: 24px;
+  cursor: pointer;
   user-select: none;
   -webkit-tap-highlight-color: transparent;
-  text-shadow: 1px 1px 0 #000;
-  animation: pulse-hint 2s infinite;
+  image-rendering: pixelated;
+  font-family: 'VT323', monospace;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-@keyframes pulse-hint {
-  0% { opacity: 0.7; }
-  50% { opacity: 1; }
-  100% { opacity: 0.7; }
+.direction-btn:active {
+  background-color: #4a5a6a;
+  transform: scale(0.95);
 }
 
 .buttons-row {
