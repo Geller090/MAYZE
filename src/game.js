@@ -84,6 +84,7 @@ class Game {
   }
   
   setupInput() {
+    // Keyboard controls
     document.addEventListener('keydown', (event) => {
       // Handle arrow keys
       switch (event.key) {
@@ -113,6 +114,101 @@ class Game {
           break;
       }
     });
+    
+    // Mobile touch controls
+    this.setupMobileControls();
+    
+    // Responsive canvas sizing
+    window.addEventListener('resize', this.handleResize.bind(this));
+    this.handleResize();
+  }
+  
+  // Set up mobile touch controls
+  setupMobileControls() {
+    // Direction buttons
+    const upBtn = document.getElementById('up-btn');
+    const rightBtn = document.getElementById('right-btn');
+    const downBtn = document.getElementById('down-btn');
+    const leftBtn = document.getElementById('left-btn');
+    
+    // Action buttons
+    const fogBtn = document.getElementById('fog-btn');
+    const resetBtn = document.getElementById('reset-btn');
+    
+    // Add touch event listeners
+    if (upBtn) {
+      upBtn.addEventListener('click', () => this.handleMove('up'));
+      upBtn.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        this.handleMove('up');
+      });
+    }
+    
+    if (rightBtn) {
+      rightBtn.addEventListener('click', () => this.handleMove('right'));
+      rightBtn.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        this.handleMove('right');
+      });
+    }
+    
+    if (downBtn) {
+      downBtn.addEventListener('click', () => this.handleMove('down'));
+      downBtn.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        this.handleMove('down');
+      });
+    }
+    
+    if (leftBtn) {
+      leftBtn.addEventListener('click', () => this.handleMove('left'));
+      leftBtn.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        this.handleMove('left');
+      });
+    }
+    
+    if (fogBtn) {
+      fogBtn.addEventListener('click', () => this.maze.toggleFogOfWar());
+      fogBtn.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        this.maze.toggleFogOfWar();
+      });
+    }
+    
+    if (resetBtn) {
+      resetBtn.addEventListener('click', () => this.init());
+      resetBtn.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        this.init();
+      });
+    }
+  }
+  
+  // Handle window resize for responsive sizing
+  handleResize() {
+    const isMobile = window.innerWidth <= 768;
+    
+    if (isMobile) {
+      // Smaller maze for mobile
+      const mobileScale = Math.min(1, window.innerWidth / (this.mazeWidth * this.cellSize + 20));
+      
+      // Scale the canvas
+      this.canvas.style.transformOrigin = 'top left';
+      this.canvas.style.transform = `scale(${mobileScale})`;
+      
+      // Ensure the container accommodates the scaled canvas
+      const gameContainer = document.querySelector('.game-container');
+      if (gameContainer) {
+        gameContainer.style.height = 'auto';
+        gameContainer.style.width = `${this.mazeWidth * this.cellSize * mobileScale}px`;
+      }
+    } else {
+      // Reset for desktop
+      this.canvas.style.transform = 'none';
+      this.canvas.style.width = `${this.mazeWidth * this.cellSize}px`;
+      this.canvas.style.height = `${this.mazeHeight * this.cellSize}px`;
+    }
   }
   
   handleMove(direction) {
@@ -129,9 +225,8 @@ class Game {
           this.player.y === this.mazeHeight - 1 &&
           this.player.keys === this.keyCount) {
         setTimeout(() => {
-          alert('Congratulations! You escaped the maze!');
-          this.init(); // Reset game
-        }, 100);
+          this.showVictoryScreen();
+        }, 300);
       }
     }
   }
@@ -211,4 +306,101 @@ document.addEventListener('DOMContentLoaded', () => {
   const pixelOverlay = document.createElement('div');
   pixelOverlay.className = 'pixel-overlay';
   document.body.appendChild(pixelOverlay);
+  
+  // Add victory screen method to Game prototype
+  Game.prototype.showVictoryScreen = function() {
+    // Create victory screen container
+    const victoryScreen = document.createElement('div');
+    victoryScreen.className = 'victory-screen';
+    
+    // Victory content
+    victoryScreen.innerHTML = `
+      <div class="victory-title">MISSION COMPLETE</div>
+      <div class="victory-message">YOU ESCAPED THE FOG OF WAR</div>
+      <div class="victory-stats">KEYS COLLECTED: ${this.player.keys}/${this.keyCount}</div>
+      <button class="play-again-btn">PLAY AGAIN</button>
+    `;
+    
+    // Add to body
+    document.body.appendChild(victoryScreen);
+    
+    // Add event listener to play again button
+    const playAgainBtn = victoryScreen.querySelector('.play-again-btn');
+    playAgainBtn.addEventListener('click', () => {
+      document.body.removeChild(victoryScreen);
+      this.init();
+    });
+    
+    // Add CSS dynamically if needed
+    if (!document.getElementById('victory-styles')) {
+      const victoryStyles = document.createElement('style');
+      victoryStyles.id = 'victory-styles';
+      victoryStyles.textContent = `
+        .victory-screen {
+          position: fixed;
+          top: 0;
+          left: 0;
+          width: 100vw;
+          height: 100vh;
+          background-color: rgba(10, 10, 18, 0.9);
+          display: flex;
+          flex-direction: column;
+          justify-content: center;
+          align-items: center;
+          z-index: 1000;
+          font-family: 'VT323', monospace;
+          animation: victory-fade-in 0.5s ease-in;
+        }
+        
+        .victory-title {
+          font-size: 48px;
+          color: #5af;
+          margin-bottom: 20px;
+          text-shadow: 3px 3px 0px #102030;
+          animation: victory-pulse 2s infinite;
+        }
+        
+        .victory-message {
+          font-size: 32px;
+          color: #9acdff;
+          margin-bottom: 40px;
+          text-shadow: 2px 2px 0px #102030;
+        }
+        
+        .victory-stats {
+          font-size: 24px;
+          color: #7ab;
+          margin-bottom: 30px;
+        }
+        
+        .play-again-btn {
+          padding: 12px 24px;
+          background-color: #304050;
+          border: 2px solid #506070;
+          color: #9acdff;
+          font-size: 24px;
+          font-family: 'VT323', monospace;
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+        
+        .play-again-btn:hover {
+          background-color: #405060;
+          transform: scale(1.05);
+        }
+        
+        @keyframes victory-pulse {
+          0% { transform: scale(1); text-shadow: 3px 3px 0px #102030; }
+          50% { transform: scale(1.05); text-shadow: 4px 4px 0px #0c1620; }
+          100% { transform: scale(1); text-shadow: 3px 3px 0px #102030; }
+        }
+        
+        @keyframes victory-fade-in {
+          0% { opacity: 0; }
+          100% { opacity: 1; }
+        }
+      `;
+      document.head.appendChild(victoryStyles);
+    }
+  };
 });

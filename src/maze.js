@@ -138,13 +138,15 @@ class Maze {
         const cell = this.grid[y][x];
         const isExplored = this.explored[y][x];
         const isVisible = this.visible[y][x];
+        const isEntrance = x === 0 && y === 0;
+        const isExit = x === this.width - 1 && y === this.height - 1;
         
         // Skip cells that haven't been explored when fog of war is enabled
-        if (this.fogOfWarEnabled && !isExplored) continue;
+        if (this.fogOfWarEnabled && !isExplored && !isEntrance && !isExit) continue;
         
         // Set opacity based on visibility status
         if (this.fogOfWarEnabled) {
-          if (isVisible) {
+          if (isVisible || isEntrance || isExit) {
             ctx.globalAlpha = 1.0; // Currently visible
           } else if (isExplored) {
             ctx.globalAlpha = this.exploredOpacity; // Explored but not currently visible
@@ -157,19 +159,54 @@ class Maze {
         const startY = y * this.cellSize;
         
         // Draw cell background for explored areas with pixelated texture
-        if (isExplored || !this.fogOfWarEnabled) {
-          // Cell background
-          ctx.fillStyle = isVisible ? this.colors.pathlight : this.colors.explored;
-          ctx.fillRect(startX, startY, this.cellSize, this.cellSize);
-          
-          // Add pixelated noise texture to the cell
-          if (isVisible) {
-            ctx.fillStyle = this.colors.pathlight;
-            for (let i = 0; i < 3; i++) {
-              const noiseX = startX + Math.floor(Math.random() * this.cellSize);
-              const noiseY = startY + Math.floor(Math.random() * this.cellSize);
-              const noiseSize = Math.max(1, Math.floor(this.cellSize / 10));
-              ctx.fillRect(noiseX, noiseY, noiseSize, noiseSize);
+        if (isExplored || !this.fogOfWarEnabled || isEntrance || isExit) {
+          // Special treatment for entrance and exit
+          if (isEntrance) {
+            // Entrance - blue portal
+            ctx.fillStyle = '#0066cc';
+            ctx.fillRect(startX, startY, this.cellSize, this.cellSize);
+            
+            // Portal effect
+            ctx.fillStyle = '#00aaff';
+            ctx.fillRect(startX + this.cellSize * 0.2, startY + this.cellSize * 0.2, 
+                        this.cellSize * 0.6, this.cellSize * 0.6);
+                        
+            // Entrance label
+            ctx.fillStyle = '#ffffff';
+            ctx.font = `${Math.max(10, this.cellSize/2)}px VT323, monospace`;
+            ctx.textAlign = 'center';
+            ctx.fillText('IN', startX + this.cellSize/2, startY + this.cellSize/1.5);
+          } 
+          else if (isExit) {
+            // Exit - red portal
+            ctx.fillStyle = '#cc0066';
+            ctx.fillRect(startX, startY, this.cellSize, this.cellSize);
+            
+            // Portal effect
+            ctx.fillStyle = '#ff00aa';
+            ctx.fillRect(startX + this.cellSize * 0.2, startY + this.cellSize * 0.2, 
+                        this.cellSize * 0.6, this.cellSize * 0.6);
+                        
+            // Exit label
+            ctx.fillStyle = '#ffffff';
+            ctx.font = `${Math.max(10, this.cellSize/2)}px VT323, monospace`;
+            ctx.textAlign = 'center';
+            ctx.fillText('OUT', startX + this.cellSize/2, startY + this.cellSize/1.5);
+          } 
+          else {
+            // Regular cell background
+            ctx.fillStyle = isVisible ? this.colors.pathlight : this.colors.explored;
+            ctx.fillRect(startX, startY, this.cellSize, this.cellSize);
+            
+            // Add pixelated noise texture to the cell
+            if (isVisible) {
+              ctx.fillStyle = this.colors.pathlight;
+              for (let i = 0; i < 3; i++) {
+                const noiseX = startX + Math.floor(Math.random() * this.cellSize);
+                const noiseY = startY + Math.floor(Math.random() * this.cellSize);
+                const noiseSize = Math.max(1, Math.floor(this.cellSize / 10));
+                ctx.fillRect(noiseX, noiseY, noiseSize, noiseSize);
+              }
             }
           }
         }
