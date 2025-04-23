@@ -75,16 +75,37 @@ class Collectibles {
       const centerX = item.x * cellSize + cellSize / 2;
       const centerY = item.y * cellSize + cellSize / 2;
       
-      // Draw key
-      ctx.fillStyle = '#ffcc00';
+      // Draw key (pixelated style)
+      const keySize = cellSize * 0.6;
+      const keyX = centerX - keySize / 2;
+      const keyY = centerY - keySize / 2;
       
-      // Key body
+      // Key base
+      ctx.fillStyle = '#fa0';
+      ctx.fillRect(keyX, keyY, keySize, keySize);
+      
+      // Key details
+      ctx.fillStyle = '#fc0';
+      ctx.fillRect(keyX + keySize * 0.2, keyY + keySize * 0.2, keySize * 0.6, keySize * 0.6);
+      
+      // Key teeth (pixelated)
+      ctx.fillStyle = '#ff0';
+      const teethSize = Math.max(2, Math.floor(cellSize / 10));
+      ctx.fillRect(keyX + keySize * 0.3, keyY + keySize * 0.3, teethSize, teethSize);
+      ctx.fillRect(keyX + keySize * 0.6, keyY + keySize * 0.4, teethSize, teethSize);
+      ctx.fillRect(keyX + keySize * 0.4, keyY + keySize * 0.6, teethSize, teethSize);
+      
+      // Add glow effect
       ctx.beginPath();
-      ctx.arc(centerX, centerY, cellSize / 4, 0, Math.PI * 2);
+      ctx.arc(centerX, centerY, keySize * 0.8, 0, Math.PI * 2);
+      const gradient = ctx.createRadialGradient(
+        centerX, centerY, 0,
+        centerX, centerY, keySize * 0.8
+      );
+      gradient.addColorStop(0, 'rgba(255, 200, 100, 0.3)');
+      gradient.addColorStop(1, 'rgba(255, 150, 0, 0)');
+      ctx.fillStyle = gradient;
       ctx.fill();
-      
-      // Key teeth
-      ctx.fillRect(centerX + cellSize / 8, centerY - cellSize / 16, cellSize / 4, cellSize / 8);
     }
     
     ctx.globalAlpha = 1.0;

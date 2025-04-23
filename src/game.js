@@ -29,9 +29,58 @@ class Game {
     // Set up event listeners
     this.setupInput();
     
-    // Start game loop
-    this.lastTime = 0;
-    requestAnimationFrame(this.gameLoop.bind(this));
+    // Pixelated boot screen animation
+    this.showBootSequence(() => {
+      // Start game loop after boot animation
+      this.lastTime = 0;
+      requestAnimationFrame(this.gameLoop.bind(this));
+    });
+  }
+  
+  // Show pixelated boot sequence animation
+  showBootSequence(callback) {
+    this.ctx.fillStyle = '#0a0a12';
+    this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+    this.ctx.fillStyle = '#9acdff';
+    this.ctx.font = '20px VT323, monospace';
+    this.ctx.textAlign = 'center';
+    
+    const bootText = [
+      'LOADING FOG OF WAR SYSTEM',
+      'INITIALIZING MAZE GENERATORS',
+      'CALIBRATING VISIBILITY CALCULATIONS',
+      'RENDERING PIXELATED ENVIRONMENT',
+      'SYSTEM READY'
+    ];
+    
+    let currentLine = 0;
+    const textY = this.canvas.height / 2 - 40;
+    const lineHeight = 30;
+    
+    const typeText = () => {
+      if (currentLine >= bootText.length) {
+        setTimeout(callback, 500);
+        return;
+      }
+      
+      const text = bootText[currentLine];
+      this.ctx.fillText(text, this.canvas.width / 2, textY + currentLine * lineHeight);
+      currentLine++;
+      
+      // Progress bar
+      const progress = currentLine / bootText.length;
+      this.ctx.fillStyle = '#304050';
+      this.ctx.fillRect(this.canvas.width * 0.2, this.canvas.height * 0.6, 
+                       this.canvas.width * 0.6, 10);
+      this.ctx.fillStyle = '#5af';
+      this.ctx.fillRect(this.canvas.width * 0.2, this.canvas.height * 0.6, 
+                       this.canvas.width * 0.6 * progress, 10);
+      this.ctx.fillStyle = '#9acdff';
+      
+      setTimeout(typeText, 400);
+    };
+    
+    typeText();
   }
   
   setupInput() {
@@ -95,6 +144,9 @@ class Game {
     // Clear canvas
     this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
     
+    // Add pixelation effect
+    this.ctx.imageSmoothingEnabled = false;
+    
     // Render maze
     this.maze.render(this.ctx);
     
@@ -104,8 +156,38 @@ class Game {
     // Render player
     this.player.render(this.ctx);
     
+    // Add screen effect (scanlines)
+    this.renderScreenEffect();
+    
     // Continue game loop
     requestAnimationFrame(this.gameLoop.bind(this));
+  }
+  
+  // Add pixelated screen effect
+  renderScreenEffect() {
+    // Scanlines effect
+    const scanlineHeight = 2;
+    const scanlineOpacity = 0.1;
+    this.ctx.fillStyle = `rgba(0, 0, 0, ${scanlineOpacity})`;
+    
+    for (let y = 0; y < this.canvas.height; y += scanlineHeight * 2) {
+      this.ctx.fillRect(0, y, this.canvas.width, scanlineHeight);
+    }
+    
+    // CRT vignette effect (darker corners)
+    const gradient = this.ctx.createRadialGradient(
+      this.canvas.width / 2, this.canvas.height / 2, 
+      this.canvas.height * 0.3,
+      this.canvas.width / 2, this.canvas.height / 2, 
+      this.canvas.height * 0.8
+    );
+    gradient.addColorStop(0, 'rgba(0, 0, 0, 0)');
+    gradient.addColorStop(1, 'rgba(0, 0, 0, 0.4)');
+    
+    this.ctx.fillStyle = gradient;
+    this.ctx.globalCompositeOperation = 'multiply';
+    this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+    this.ctx.globalCompositeOperation = 'source-over';
   }
 }
 
@@ -113,15 +195,20 @@ class Game {
 document.addEventListener('DOMContentLoaded', () => {
   const game = new Game('mazeCanvas');
   
-  // Add game instructions
+  // Add game instructions with pixelated styling
   const gameContainer = document.querySelector('.game-container');
   const instructions = document.createElement('div');
   instructions.className = 'instructions';
   instructions.innerHTML = `
-    <p>Use arrow keys to move</p>
-    <p>Collect all keys (${game.keyCount}) to unlock the exit</p>
-    <p>Press F to toggle fog-of-war</p>
-    <p>Press R to reset the maze</p>
+    <p>► USE ARROW KEYS TO MOVE</p>
+    <p>► COLLECT ALL KEYS (${game.keyCount}) TO UNLOCK THE EXIT</p>
+    <p>► PRESS F TO TOGGLE FOG-OF-WAR</p>
+    <p>► PRESS R TO RESET THE MAZE</p>
   `;
   gameContainer.appendChild(instructions);
+  
+  // Add pixel grain effect to entire page
+  const pixelOverlay = document.createElement('div');
+  pixelOverlay.className = 'pixel-overlay';
+  document.body.appendChild(pixelOverlay);
 });

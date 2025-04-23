@@ -12,6 +12,16 @@ class Maze {
     this.visibilityRadius = 3; // How far the player can see
     this.exploredOpacity = 0.4; // 40% opacity for explored areas
     
+    // Colors for the pixelated style
+    this.colors = {
+      background: '#0a0a12',
+      wall: '#405060',
+      wallShade: '#304050',
+      explored: '#162030',
+      pathlight: '#233344',
+      outOfBounds: '#080810'
+    };
+    
     // Player tracking
     this.lastPlayerX = 0;
     this.lastPlayerY = 0;
@@ -116,15 +126,13 @@ class Maze {
   }
 
   render(ctx) {
-    ctx.strokeStyle = '#fff';
-    ctx.lineWidth = 2;
-
-    // Draw black background for fog of war
+    // Draw dark background for fog of war
     if (this.fogOfWarEnabled) {
-      ctx.fillStyle = '#000';
+      ctx.fillStyle = this.colors.outOfBounds;
       ctx.fillRect(0, 0, this.width * this.cellSize, this.height * this.cellSize);
     }
 
+    // Draw all cells
     for (let y = 0; y < this.height; y++) {
       for (let x = 0; x < this.width; x++) {
         const cell = this.grid[y][x];
@@ -148,39 +156,68 @@ class Maze {
         const startX = x * this.cellSize;
         const startY = y * this.cellSize;
         
-        // Draw cell background for explored areas
+        // Draw cell background for explored areas with pixelated texture
         if (isExplored || !this.fogOfWarEnabled) {
-          ctx.fillStyle = '#111';
+          // Cell background
+          ctx.fillStyle = isVisible ? this.colors.pathlight : this.colors.explored;
           ctx.fillRect(startX, startY, this.cellSize, this.cellSize);
+          
+          // Add pixelated noise texture to the cell
+          if (isVisible) {
+            ctx.fillStyle = this.colors.pathlight;
+            for (let i = 0; i < 3; i++) {
+              const noiseX = startX + Math.floor(Math.random() * this.cellSize);
+              const noiseY = startY + Math.floor(Math.random() * this.cellSize);
+              const noiseSize = Math.max(1, Math.floor(this.cellSize / 10));
+              ctx.fillRect(noiseX, noiseY, noiseSize, noiseSize);
+            }
+          }
         }
         
-        // Draw walls
+        // Draw walls with pixelated style
+        ctx.fillStyle = this.colors.wall;
+        
+        // Top wall
         if (cell.walls.top) {
-          ctx.beginPath();
-          ctx.moveTo(startX, startY);
-          ctx.lineTo(startX + this.cellSize, startY);
-          ctx.stroke();
+          ctx.fillRect(startX, startY, this.cellSize, this.cellSize / 5);
+          // Add pixelation to wall
+          ctx.fillStyle = this.colors.wallShade;
+          for (let i = 0; i < this.cellSize; i += Math.max(2, this.cellSize / 10)) {
+            ctx.fillRect(startX + i, startY, Math.max(1, this.cellSize / 10), this.cellSize / 10);
+          }
         }
         
+        // Right wall
         if (cell.walls.right) {
-          ctx.beginPath();
-          ctx.moveTo(startX + this.cellSize, startY);
-          ctx.lineTo(startX + this.cellSize, startY + this.cellSize);
-          ctx.stroke();
+          ctx.fillStyle = this.colors.wall;
+          ctx.fillRect(startX + this.cellSize - this.cellSize / 5, startY, this.cellSize / 5, this.cellSize);
+          // Add pixelation to wall
+          ctx.fillStyle = this.colors.wallShade;
+          for (let i = 0; i < this.cellSize; i += Math.max(2, this.cellSize / 10)) {
+            ctx.fillRect(startX + this.cellSize - this.cellSize / 10, startY + i, this.cellSize / 10, Math.max(1, this.cellSize / 10));
+          }
         }
         
+        // Bottom wall
         if (cell.walls.bottom) {
-          ctx.beginPath();
-          ctx.moveTo(startX + this.cellSize, startY + this.cellSize);
-          ctx.lineTo(startX, startY + this.cellSize);
-          ctx.stroke();
+          ctx.fillStyle = this.colors.wall;
+          ctx.fillRect(startX, startY + this.cellSize - this.cellSize / 5, this.cellSize, this.cellSize / 5);
+          // Add pixelation to wall
+          ctx.fillStyle = this.colors.wallShade;
+          for (let i = 0; i < this.cellSize; i += Math.max(2, this.cellSize / 10)) {
+            ctx.fillRect(startX + i, startY + this.cellSize - this.cellSize / 10, Math.max(1, this.cellSize / 10), this.cellSize / 10);
+          }
         }
         
+        // Left wall
         if (cell.walls.left) {
-          ctx.beginPath();
-          ctx.moveTo(startX, startY + this.cellSize);
-          ctx.lineTo(startX, startY);
-          ctx.stroke();
+          ctx.fillStyle = this.colors.wall;
+          ctx.fillRect(startX, startY, this.cellSize / 5, this.cellSize);
+          // Add pixelation to wall
+          ctx.fillStyle = this.colors.wallShade;
+          for (let i = 0; i < this.cellSize; i += Math.max(2, this.cellSize / 10)) {
+            ctx.fillRect(startX, startY + i, this.cellSize / 10, Math.max(1, this.cellSize / 10));
+          }
         }
       }
     }
