@@ -49,7 +49,7 @@ class Collectibles {
     return null;
   }
 
-  render(ctx, showUnexplored = true) {
+  render(ctx) {
     const cellSize = this.maze.cellSize;
     
     for (let i = 0; i < this.items.length; i++) {
@@ -58,14 +58,18 @@ class Collectibles {
       // Skip if collected
       if (item.collected) continue;
       
-      // Check if item is in explored area when fog of war is active
-      if (!showUnexplored && !this.maze.explored[item.y][item.x]) continue;
+      // Skip if not visible in fog of war mode
+      if (this.maze.fogOfWarEnabled && !this.maze.isVisible(item.x, item.y) && !this.maze.explored[item.y][item.x]) continue;
       
-      // Set opacity based on exploration
-      if (!this.maze.explored[item.y][item.x] && showUnexplored) {
-        ctx.globalAlpha = 0.3;
+      // Set opacity based on visibility
+      if (this.maze.fogOfWarEnabled) {
+        if (this.maze.isVisible(item.x, item.y)) {
+          ctx.globalAlpha = 1.0; // Currently visible
+        } else if (this.maze.explored[item.y][item.x]) {
+          ctx.globalAlpha = this.maze.exploredOpacity; // Explored but not currently visible
+        }
       } else {
-        ctx.globalAlpha = 1.0;
+        ctx.globalAlpha = 1.0; // No fog of war
       }
       
       const centerX = item.x * cellSize + cellSize / 2;

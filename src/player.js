@@ -7,6 +7,9 @@ class Player {
     
     // Mark starting position as explored
     this.maze.exploreCell(this.x, this.y);
+    
+    // Update visibility around player
+    this.updateVisibility();
   }
 
   move(direction) {
@@ -35,9 +38,17 @@ class Player {
       // Mark the new cell as explored
       this.maze.exploreCell(this.x, this.y);
       
+      // Update visibility around player
+      this.updateVisibility();
+      
       return true;
     }
     return false;
+  }
+  
+  // Update visibility around player
+  updateVisibility() {
+    this.maze.updateVisibility(this.x, this.y);
   }
 
   render(ctx) {

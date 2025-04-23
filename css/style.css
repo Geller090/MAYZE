@@ -39,3 +39,13 @@ canvas {
 .instructions p {
   margin: 5px 0;
 }
+
+.fog-status {
+  margin-top: 10px;
+  color: #fff;
+  font-size: 14px;
+  text-align: center;
+  padding: 5px;
+  background-color: rgba(0, 100, 150, 0.5);
+  border-radius: 5px;
+}

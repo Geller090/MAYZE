@@ -3,17 +3,15 @@ class Game {
     this.canvas = document.getElementById(canvasId);
     this.ctx = this.canvas.getContext('2d');
     
+    // Game configuration
     this.mazeWidth = mazeWidth;
     this.mazeHeight = mazeHeight;
     this.cellSize = cellSize;
+    this.keyCount = 3;
     
     // Set canvas size
     this.canvas.width = this.mazeWidth * this.cellSize;
     this.canvas.height = this.mazeHeight * this.cellSize;
-    
-    // Game configuration
-    this.showUnexplored = true; // Set to false for fog-of-war
-    this.keyCount = 3; // Number of keys to collect
     
     this.init();
   }
@@ -58,7 +56,7 @@ class Game {
           break;
         case 'f':
           // Toggle fog of war
-          this.showUnexplored = !this.showUnexplored;
+          this.maze.toggleFogOfWar();
           break;
         case 'r':
           // Reset game
@@ -98,10 +96,10 @@ class Game {
     this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
     
     // Render maze
-    this.maze.render(this.ctx, this.showUnexplored);
+    this.maze.render(this.ctx);
     
     // Render collectibles
-    this.collectibles.render(this.ctx, this.showUnexplored);
+    this.collectibles.render(this.ctx);
     
     // Render player
     this.player.render(this.ctx);
@@ -113,7 +111,7 @@ class Game {
 
 // Start game when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
-  const game = new Game('mazeCanvas', 20, 20, 20);
+  const game = new Game('mazeCanvas');
   
   // Add game instructions
   const gameContainer = document.querySelector('.game-container');

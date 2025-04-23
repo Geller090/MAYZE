@@ -1,0 +1,3 @@
+## Fog of War
+
+The map starts totally dark except the blocks around the player's current position. The player has a lantern of a particular power (which may change throughout game, or based on items they pick up, or upgrades, tbd), and it lights blocks a particular distance away. There's a drop-off of some configurable ratio that makes it less light as you move further away. The map has memory of the brightest any particular spot has been, and it stays that bright. The parameters ought to be configurable for now so developer can visualize different values and learn how it feels.
