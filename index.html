@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>FOG of WAR - Pixelated Maze Game</title>
+  <title>MAYZE - Gothic Cave Maze Game</title>
   <link rel="icon" href="public/icons/favicon.ico">
   <link rel="icon" type="image/png" sizes="16x16" href="public/icons/favicon-16x16.png">
   <link rel="icon" type="image/png" sizes="32x32" href="public/icons/favicon-32x32.png">
@@ -12,36 +12,66 @@
   <link rel="apple-touch-icon" href="public/icons/apple-touch-icon.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=VT323&family=Cinzel:wght@400;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-  <div class="game-container">
-    <div class="game-title">FOG of WAR</div>
-    <canvas id="mazeCanvas"></canvas>
-    <div class="stats">
-      <span>KEYS: <span id="keyCount">0</span>/3</span>
-      <span id="timerDisplay" style="margin-left: 20px;">03:00</span>
+  <!-- Title Screen -->
+  <section id="title-screen">
+    <h1 class="logo">MAYZE</h1>
+    <p class="subtitle">press any key or tap to start</p>
+  </section>
+
+  <!-- HUD -->
+  <div id="hud">
+    <span id="time">time 00:00</span>
+    <span id="best">best 00:00</span>
+  </div>
+
+  <!-- Game Screen -->
+  <section id="game-screen" hidden>
+    <div class="game-container">
+      <div class="game-title">MAYZE</div>
+      <canvas id="mazeCanvas"></canvas>
+      <div class="stats">
+        <span>KEYS: <span id="keyCount">0</span>/3</span>
+      </div>
+      
+      <!-- Mobile controls -->
+      <div class="mobile-controls">
+        <div class="control-row">
+          <button id="up-btn" class="direction-btn">▲</button>
+        </div>
+        <div class="control-row">
+          <button id="left-btn" class="direction-btn">◀</button>
+          <button id="down-btn" class="direction-btn">▼</button>
+          <button id="right-btn" class="direction-btn">▶</button>
+        </div>
+        <div class="control-row buttons-row">
+          <button id="fog-btn" class="action-btn">FOG</button>
+          <button id="reset-btn" class="action-btn">RESET</button>
+        </div>
+      </div>
     </div>
-    
-    <!-- Mobile controls -->
-    <div class="mobile-controls">
-      <div class="control-row">
-        <button id="up-btn" class="direction-btn">▲</button>
-      </div>
-      <div class="control-row">
-        <button id="left-btn" class="direction-btn">◀</button>
-        <button id="down-btn" class="direction-btn">▼</button>
-        <button id="right-btn" class="direction-btn">▶</button>
-      </div>
-      <div class="control-row buttons-row">
-        <button id="fog-btn" class="action-btn">FOG</button>
-        <button id="reset-btn" class="action-btn">RESET</button>
-      </div>
+  </section>
+
+  <!-- Victory Modal -->
+  <div id="victory-modal">
+    <div class="victory-card">
+      <h2 class="victory-title">VICTORY!</h2>
+      <p class="victory-text">You escaped the maze in:</p>
+      <div class="time-result" id="final-time">00:00</div>
+      <div class="new-record" id="new-record-text">NEW RECORD!</div>
+      <button class="victory-button" id="restart-button">PLAY AGAIN</button>
     </div>
   </div>
   
   <script>
+    // Global timing variables
+    let startTime, timerInterval;
+    let bestTime = localStorage.getItem('mayze-best-time') || Infinity;
+    let isGameActive = false;
+
     // PowerUp class
     class PowerUp {
       constructor(type, x, y) {
@@ -53,13 +83,13 @@
         // Properties based on type
         switch(type) {
           case 'speed':
-            this.color = '#00FFFF'; // Cyan
+            this.color = '#16f2ff'; // Teal for speed
             break;
           case 'time':
-            this.color = '#00FF00'; // Lime green
+            this.color = '#16f2ff'; // Teal for time
             break;
           case 'reveal':
-            this.color = '#FF00FF'; // Magenta
+            this.color = '#16f2ff'; // Teal for reveal
             break;
         }
       }
@@ -91,12 +121,12 @@
         const pulse = Math.sin(Date.now() / 200) * 0.1 + 0.9; // Subtle pulse between 0.8 and 1.0
         ctx.globalAlpha *= pulse;
         
-        // Draw power-up
+        // Draw power-up with strong glow effect
         ctx.fillStyle = this.color;
         ctx.shadowColor = this.color;
-        ctx.shadowBlur = 8;
+        ctx.shadowBlur = 12; // Increased glow
         
-        // Draw as a glow square
+        // Draw as a glowing square
         ctx.fillRect(
           centerX - size/2,
           centerY - size/2,
@@ -124,13 +154,13 @@
         this.visibilityRadius = 3; // How far the player can see
         this.exploredOpacity = 0.4; // 40% opacity for explored areas
         
-        // Colors for the pixelated style
+        // Colors for the pixelated cave/gothic style
         this.colors = {
           background: '#0a0a12',
-          wall: '#405060',
-          wallShade: '#304050',
-          explored: '#162030',
-          pathlight: '#233344',
+          wall: '#1b1f23', // Dark slate color
+          wallShade: '#17191d',
+          explored: '#131318',
+          pathlight: '#1a1a25',
           outOfBounds: '#080810'
         };
         
@@ -274,12 +304,12 @@
             if (isExplored || !this.fogOfWarEnabled || isEntrance || isExit) {
               // Special treatment for entrance and exit
               if (isEntrance) {
-                // Entrance - blue portal
-                ctx.fillStyle = '#0066cc';
+                // Entrance - purple portal
+                ctx.fillStyle = '#3a2a4a';
                 ctx.fillRect(startX, startY, this.cellSize, this.cellSize);
                 
                 // Portal effect
-                ctx.fillStyle = '#00aaff';
+                ctx.fillStyle = '#533a6d';
                 ctx.fillRect(startX + this.cellSize * 0.2, startY + this.cellSize * 0.2, 
                             this.cellSize * 0.6, this.cellSize * 0.6);
                             
@@ -290,12 +320,12 @@
                 ctx.fillText('IN', startX + this.cellSize/2, startY + this.cellSize/1.5);
               } 
               else if (isExit) {
-                // Exit - red portal
-                ctx.fillStyle = '#cc0066';
+                // Exit - teal portal
+                ctx.fillStyle = '#0a4a5c';
                 ctx.fillRect(startX, startY, this.cellSize, this.cellSize);
                 
                 // Portal effect
-                ctx.fillStyle = '#ff00aa';
+                ctx.fillStyle = '#10788e';
                 ctx.fillRect(startX + this.cellSize * 0.2, startY + this.cellSize * 0.2, 
                             this.cellSize * 0.6, this.cellSize * 0.6);
                             
@@ -323,7 +353,7 @@
               }
             }
             
-            // Draw walls with pixelated style
+            // Draw walls with pixelated slate texture style
             ctx.fillStyle = this.colors.wall;
             
             // Top wall
@@ -535,7 +565,7 @@
       }
     
       move(direction) {
-        if (!this.movementEnabled) return false;
+        if (!this.movementEnabled || !isGameActive) return false;
         
         // Check if movement cooldown has passed
         const now = Date.now();
@@ -590,13 +620,13 @@
         const offsetX = (cellSize - playerSize) / 2;
         const offsetY = (cellSize - playerSize) / 2;
     
-        // Draw player base (character sprite) - pixelated style
+        // Draw player base (character sprite) - pixelated style with purple theme
         // Character body
-        ctx.fillStyle = this.speedBoost ? '#8af' : '#5af'; // Brighter when speed boosted
+        ctx.fillStyle = this.speedBoost ? '#9370db' : '#614695'; // Brighter purple when speed boosted
         ctx.fillRect(startX + offsetX, startY + offsetY, playerSize, playerSize);
         
         // Inner details (pixelated face)
-        ctx.fillStyle = this.speedBoost ? '#5cf' : '#3af';
+        ctx.fillStyle = this.speedBoost ? '#b19cd9' : '#7c5cb7';
         const headSize = playerSize * 0.6;
         const headOffsetX = (cellSize - headSize) / 2;
         const headOffsetY = (cellSize - headSize) / 2;
@@ -622,11 +652,11 @@
         );
         
         if (this.speedBoost) {
-          gradient.addColorStop(0, 'rgba(120, 220, 255, 0.5)');
-          gradient.addColorStop(1, 'rgba(0, 120, 220, 0)');
+          gradient.addColorStop(0, 'rgba(147, 112, 219, 0.5)');
+          gradient.addColorStop(1, 'rgba(147, 112, 219, 0)');
         } else {
-          gradient.addColorStop(0, 'rgba(100, 200, 255, 0.4)');
-          gradient.addColorStop(1, 'rgba(0, 100, 200, 0)');
+          gradient.addColorStop(0, 'rgba(97, 70, 149, 0.4)');
+          gradient.addColorStop(1, 'rgba(97, 70, 149, 0)');
         }
         
         ctx.fillStyle = gradient;
@@ -735,21 +765,21 @@
           const centerX = item.x * cellSize + cellSize / 2;
           const centerY = item.y * cellSize + cellSize / 2;
           
-          // Draw key (pixelated style)
+          // Draw key (pixelated style) - teal color
           const keySize = cellSize * 0.6;
           const keyX = centerX - keySize / 2;
           const keyY = centerY - keySize / 2;
           
           // Key base
-          ctx.fillStyle = '#fa0';
+          ctx.fillStyle = '#0aafce';
           ctx.fillRect(keyX, keyY, keySize, keySize);
           
           // Key details
-          ctx.fillStyle = '#fc0';
+          ctx.fillStyle = '#16f2ff';
           ctx.fillRect(keyX + keySize * 0.2, keyY + keySize * 0.2, keySize * 0.6, keySize * 0.6);
           
           // Key teeth (pixelated)
-          ctx.fillStyle = '#ff0';
+          ctx.fillStyle = '#a0ffff';
           const teethSize = Math.max(2, Math.floor(cellSize / 10));
           ctx.fillRect(keyX + keySize * 0.3, keyY + keySize * 0.3, teethSize, teethSize);
           ctx.fillRect(keyX + keySize * 0.6, keyY + keySize * 0.4, teethSize, teethSize);
@@ -762,10 +792,18 @@
             centerX, centerY, 0,
             centerX, centerY, keySize * 0.8
           );
-          gradient.addColorStop(0, 'rgba(255, 200, 100, 0.3)');
-          gradient.addColorStop(1, 'rgba(255, 150, 0, 0)');
+          gradient.addColorStop(0, 'rgba(22, 242, 255, 0.4)');
+          gradient.addColorStop(1, 'rgba(10, 175, 206, 0)');
           ctx.fillStyle = gradient;
           ctx.fill();
+          
+          // Extra glow effect
+          ctx.shadowColor = '#16f2ff';
+          ctx.shadowBlur = 6;
+          ctx.strokeStyle = 'rgba(22, 242, 255, 0.7)';
+          ctx.lineWidth = 1;
+          ctx.strokeRect(keyX, keyY, keySize, keySize);
+          ctx.shadowBlur = 0;
         }
         
         ctx.globalAlpha = 1.0;
@@ -817,20 +855,12 @@
         if (this.messageTimeout) clearTimeout(this.messageTimeout);
         this.player.enableMovement();
         
-        // Reset and start the timer
-        this.countdownTimer = 180;
-        this.updateTimerDisplay();
-        this.startTimer();
-        
         // Set up event listeners
         this.setupInput();
         
-        // Pixelated boot screen animation
-        this.showBootSequence(() => {
-          // Start game loop after boot animation
-          this.lastTime = 0;
-          requestAnimationFrame(this.gameLoop.bind(this));
-        });
+        // Start game loop
+        this.lastTime = 0;
+        requestAnimationFrame(this.gameLoop.bind(this));
       }
       
       // Generate power-ups on empty floor tiles
@@ -876,139 +906,53 @@
         }, ms);
       }
       
-      // Start the countdown timer
-      startTimer() {
-        if (this.timerInterval) clearInterval(this.timerInterval);
-        
-        this.timerInterval = setInterval(() => {
-          this.countdownTimer--;
-          this.updateTimerDisplay();
-          
-          if (this.countdownTimer <= 0) {
-            clearInterval(this.timerInterval);
-            this.handleTimeUp();
-          }
-        }, 1000);
-      }
-      
-      // Update the timer display
-      updateTimerDisplay() {
-        const minutes = Math.floor(this.countdownTimer / 60);
-        const seconds = this.countdownTimer % 60;
-        document.getElementById('timerDisplay').textContent = 
-          `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-      }
-      
-      // Handle when time runs out
-      handleTimeUp() {
-        this.gameOver = true;
-        this.player.disableMovement();
-        this.showTimeUpScreen();
-      }
-      
-      // Show time's up screen
-      showTimeUpScreen() {
-        // Create time's up screen container
-        const timeUpScreen = document.createElement('div');
-        timeUpScreen.className = 'victory-screen';
-        
-        // Time's up content
-        timeUpScreen.innerHTML = `
-          <div class="victory-title">TIME'S UP</div>
-          <div class="victory-message">GAME OVER</div>
-          <div class="victory-stats">KEYS COLLECTED: ${this.player.keys}/${this.keyCount}</div>
-          <button class="play-again-btn">PLAY AGAIN</button>
-        `;
-        
-        // Add to body
-        document.body.appendChild(timeUpScreen);
-        
-        // Add event listener to play again button
-        const playAgainBtn = timeUpScreen.querySelector('.play-again-btn');
-        playAgainBtn.addEventListener('click', () => {
-          document.body.removeChild(timeUpScreen);
-          this.init();
-        });
-      }
-      
-      // Show pixelated boot sequence animation
-      showBootSequence(callback) {
-        this.ctx.fillStyle = '#0a0a12';
-        this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
-        this.ctx.fillStyle = '#9acdff';
-        this.ctx.font = '20px VT323, monospace';
-        this.ctx.textAlign = 'center';
-        
-        const bootText = [
-          'LOADING FOG OF WAR SYSTEM',
-          'INITIALIZING MAZE GENERATORS',
-          'CALIBRATING VISIBILITY CALCULATIONS',
-          'RENDERING PIXELATED ENVIRONMENT',
-          'SYSTEM READY'
-        ];
-        
-        let currentLine = 0;
-        const textY = this.canvas.height / 2 - 40;
-        const lineHeight = 30;
-        
-        const typeText = () => {
-          if (currentLine >= bootText.length) {
-            setTimeout(callback, 500);
-            return;
-          }
-          
-          const text = bootText[currentLine];
-          this.ctx.fillText(text, this.canvas.width / 2, textY + currentLine * lineHeight);
-          currentLine++;
-          
-          // Progress bar
-          const progress = currentLine / bootText.length;
-          this.ctx.fillStyle = '#304050';
-          this.ctx.fillRect(this.canvas.width * 0.2, this.canvas.height * 0.6, 
-                           this.canvas.width * 0.6, 10);
-          this.ctx.fillStyle = '#5af';
-          this.ctx.fillRect(this.canvas.width * 0.2, this.canvas.height * 0.6, 
-                           this.canvas.width * 0.6 * progress, 10);
-          this.ctx.fillStyle = '#9acdff';
-          
-          setTimeout(typeText, 400);
-        };
-        
-        typeText();
+      // Start the game timer
+      startGameTimer() {
+        startTime = Date.now();
+        timerInterval = setInterval(updateTimer, 1000);
       }
       
       setupInput() {
         // Keyboard controls
         document.addEventListener('keydown', (event) => {
-          // Handle arrow keys
+          // Handle arrow keys and WASD
           switch (event.key) {
             case 'ArrowUp':
+            case 'w':
+            case 'W':
               this.handleMove('up');
               event.preventDefault();
               break;
             case 'ArrowRight':
+            case 'd':
+            case 'D':
               this.handleMove('right');
               event.preventDefault();
               break;
             case 'ArrowDown':
+            case 's':
+            case 'S':
               this.handleMove('down');
               event.preventDefault();
               break;
             case 'ArrowLeft':
+            case 'a':
+            case 'A':
               this.handleMove('left');
               event.preventDefault();
               break;
             case 'f':
+            case 'F':
               // Toggle fog of war
               this.maze.toggleFogOfWar();
               break;
             case 'r':
+            case 'R':
               // Reset game (always works, even when time's up)
               if (this.gameOver) {
-                const timeUpScreen = document.querySelector('.victory-screen');
-                if (timeUpScreen) document.body.removeChild(timeUpScreen);
+                this.hideVictoryScreen();
               }
-              this.init();
+              resetGame();
               break;
           }
         });
@@ -1077,18 +1021,16 @@
         if (resetBtn) {
           resetBtn.addEventListener('click', () => {
             if (this.gameOver) {
-              const timeUpScreen = document.querySelector('.victory-screen');
-              if (timeUpScreen) document.body.removeChild(timeUpScreen);
+              this.hideVictoryScreen();
             }
-            this.init();
+            resetGame();
           });
           resetBtn.addEventListener('touchstart', (e) => {
             e.preventDefault();
             if (this.gameOver) {
-              const timeUpScreen = document.querySelector('.victory-screen');
-              if (timeUpScreen) document.body.removeChild(timeUpScreen);
+              this.hideVictoryScreen();
             }
-            this.init();
+            resetGame();
           });
         }
       }
@@ -1138,8 +1080,9 @@
             this.flashMessage("SPEED BOOST!");
             break;
           case 'time':
-            this.countdownTimer += 15;
-            this.updateTimerDisplay();
+            // For the timer implementation, we just add 15 seconds to the current time
+            startTime -= 15000; // Subtract 15 seconds from start time (adds to elapsed time)
+            updateTimer(); // Update the timer display immediately
             this.flashMessage("+15 SECONDS!");
             break;
           case 'reveal':
@@ -1160,8 +1103,12 @@
         }
       }
       
+      hideVictoryScreen() {
+        document.getElementById('victory-modal').classList.remove('visible');
+      }
+      
       handleMove(direction) {
-        if (this.gameOver) return;
+        if (this.gameOver || !isGameActive) return;
         
         if (this.player.move(direction)) {
           // Check if player collected anything
@@ -1243,7 +1190,7 @@
         const pulse = Math.sin(Date.now() / 150) * 0.2 + 0.8; // Values between 0.6 and 1.0
         ctx.globalAlpha = pulse;
         
-        ctx.fillStyle = '#1af';
+        ctx.fillStyle = '#16f2ff';
         ctx.fillText(message, x, y);
         
         ctx.restore();
@@ -1277,129 +1224,128 @@
       }
       
       showVictoryScreen() {
-        // Stop the timer
-        clearInterval(this.timerInterval);
+        this.gameOver = true;
+        this.player.disableMovement();
         
-        // Create victory screen container
-        const victoryScreen = document.createElement('div');
-        victoryScreen.className = 'victory-screen';
+        // Stop the timer and get final time
+        clearInterval(timerInterval);
+        const finalTime = Date.now() - startTime;
+        const finalTimeFormatted = formatTime(finalTime);
         
-        // Victory content
-        victoryScreen.innerHTML = `
-          <div class="victory-title">MISSION COMPLETE</div>
-          <div class="victory-message">YOU ESCAPED THE FOG OF WAR</div>
-          <div class="victory-stats">KEYS COLLECTED: ${this.player.keys}/${this.keyCount}</div>
-          <div class="victory-stats">TIME REMAINING: ${document.getElementById('timerDisplay').textContent}</div>
-          <button class="play-again-btn">PLAY AGAIN</button>
-        `;
-        
-        // Add to body
-        document.body.appendChild(victoryScreen);
-        
-        // Add event listener to play again button
-        const playAgainBtn = victoryScreen.querySelector('.play-again-btn');
-        playAgainBtn.addEventListener('click', () => {
-          document.body.removeChild(victoryScreen);
-          this.init();
-        });
-        
-        // Add CSS dynamically if needed
-        if (!document.getElementById('victory-styles')) {
-          const victoryStyles = document.createElement('style');
-          victoryStyles.id = 'victory-styles';
-          victoryStyles.textContent = `
-            .victory-screen {
-              position: fixed;
-              top: 0;
-              left: 0;
-              width: 100vw;
-              height: 100vh;
-              background-color: rgba(10, 10, 18, 0.9);
-              display: flex;
-              flex-direction: column;
-              justify-content: center;
-              align-items: center;
-              z-index: 1000;
-              font-family: 'VT323', monospace;
-              animation: victory-fade-in 0.5s ease-in;
-            }
-            
-            .victory-title {
-              font-size: 48px;
-              color: #5af;
-              margin-bottom: 20px;
-              text-shadow: 3px 3px 0px #102030;
-              animation: victory-pulse 2s infinite;
-            }
-            
-            .victory-message {
-              font-size: 32px;
-              color: #9acdff;
-              margin-bottom: 40px;
-              text-shadow: 2px 2px 0px #102030;
-            }
-            
-            .victory-stats {
-              font-size: 24px;
-              color: #7ab;
-              margin-bottom: 30px;
-            }
-            
-            .play-again-btn {
-              padding: 12px 24px;
-              background-color: #304050;
-              border: 2px solid #506070;
-              color: #9acdff;
-              font-size: 24px;
-              font-family: 'VT323', monospace;
-              cursor: pointer;
-              transition: all 0.2s;
-            }
-            
-            .play-again-btn:hover {
-              background-color: #405060;
-              transform: scale(1.05);
-            }
-            
-            @keyframes victory-pulse {
-              0% { transform: scale(1); text-shadow: 3px 3px 0px #102030; }
-              50% { transform: scale(1.05); text-shadow: 4px 4px 0px #0c1620; }
-              100% { transform: scale(1); text-shadow: 3px 3px 0px #102030; }
-            }
-            
-            @keyframes victory-fade-in {
-              0% { opacity: 0; }
-              100% { opacity: 1; }
-            }
-          `;
-          document.head.appendChild(victoryStyles);
+        // Check if this is a new best time
+        const isNewRecord = finalTime < bestTime;
+        if (isNewRecord) {
+          bestTime = finalTime;
+          localStorage.setItem('mayze-best-time', bestTime);
+          document.getElementById('best').textContent = `best ${formatTime(bestTime)}`;
+          document.getElementById('new-record-text').style.display = 'block';
+        } else {
+          document.getElementById('new-record-text').style.display = 'none';
         }
+        
+        // Update victory modal
+        document.getElementById('final-time').textContent = finalTimeFormatted;
+        document.getElementById('victory-modal').classList.add('visible');
+        
+        // Pause background audio
+        const bgm = document.getElementById('bgm');
+        if (bgm) bgm.pause();
       }
     }
     
-    // Start game when DOM is loaded
-    document.addEventListener('DOMContentLoaded', () => {
-      const game = new Game('mazeCanvas');
+    // Game instance
+    let game;
+    
+    // Timer functions
+    function updateTimer() {
+      if (!isGameActive) return;
       
-      // Add game instructions with pixelated styling
-      const gameContainer = document.querySelector('.game-container');
-      const instructions = document.createElement('div');
-      instructions.className = 'instructions';
-      instructions.innerHTML = `
-        <p>► USE ARROW KEYS TO MOVE</p>
-        <p>► COLLECT ALL KEYS (${game.keyCount}) TO UNLOCK THE EXIT</p>
-        <p>► FIND POWER-UPS TO HELP YOUR ESCAPE</p>
-        <p>► BEAT THE CLOCK BEFORE TIME RUNS OUT</p>
-        <p>► PRESS F TO TOGGLE FOG-OF-WAR</p>
-        <p>► PRESS R TO RESET THE MAZE</p>
-      `;
-      gameContainer.appendChild(instructions);
+      const elapsed = Date.now() - startTime;
+      document.getElementById('time').textContent = `time ${formatTime(elapsed)}`;
+    }
+    
+    // Format time in MM:SS
+    function formatTime(ms) {
+      const totalSeconds = Math.floor(ms / 1000);
+      const minutes = Math.floor(totalSeconds / 60);
+      const seconds = totalSeconds % 60;
+      return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+    }
+    
+    // Initialize and start game
+    function startGame() {
+      // Hide title screen and show game
+      document.getElementById('title-screen').style.opacity = '0';
+      setTimeout(() => {
+        document.getElementById('title-screen').style.display = 'none';
+        document.getElementById('game-screen').removeAttribute('hidden');
+      }, 1000);
       
-      // Add pixel grain effect to entire page
-      const pixelOverlay = document.createElement('div');
-      pixelOverlay.className = 'pixel-overlay';
-      document.body.appendChild(pixelOverlay);
+      // Load best time if available
+      if (bestTime !== Infinity) {
+        document.getElementById('best').textContent = `best ${formatTime(bestTime)}`;
+      }
+      
+      // Initialize game and start timer
+      game = new Game('mazeCanvas');
+      isGameActive = true;
+      startTime = Date.now();
+      timerInterval = setInterval(updateTimer, 1000);
+      
+      // Play background audio
+      const bgm = document.getElementById('bgm');
+      if (bgm) {
+        bgm.volume = 0.3; // Set volume to 30%
+        bgm.play();
+      }
+    }
+    
+    // Reset game function
+    function resetGame() {
+      clearInterval(timerInterval);
+      
+      // Reset game
+      game = new Game('mazeCanvas');
+      isGameActive = true;
+      startTime = Date.now();
+      timerInterval = setInterval(updateTimer, 1000);
+      
+      // Play background audio if paused
+      const bgm = document.getElementById('bgm');
+      if (bgm && bgm.paused) {
+        bgm.play();
+      }
+    }
+    
+    // Setup title screen events
+    window.addEventListener('DOMContentLoaded', () => {
+      // Title screen key press handler
+      window.addEventListener('keydown', function handleTitleScreen(e) {
+        if (document.getElementById('title-screen').style.display !== 'none') {
+          startGame();
+          // Remove this event listener after first use
+          window.removeEventListener('keydown', handleTitleScreen);
+        }
+      });
+      
+      // Title screen touch handler
+      document.getElementById('title-screen').addEventListener('click', function handleTitleTap(e) {
+        if (document.getElementById('title-screen').style.display !== 'none') {
+          startGame();
+          // Remove this event listener after first use
+          document.getElementById('title-screen').removeEventListener('click', handleTitleTap);
+        }
+      });
+      
+      // Victory screen restart button
+      document.getElementById('restart-button').addEventListener('click', function() {
+        document.getElementById('victory-modal').classList.remove('visible');
+        resetGame();
+      });
     });
   </script>
+  
+  <!-- Background Audio -->
+  <audio id="bgm" src="public/sounds/cave-ambience.mp3" loop></audio>
 </body>
 </html>
