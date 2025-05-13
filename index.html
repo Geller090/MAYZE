@@ -21,6 +21,7 @@
     <canvas id="mazeCanvas"></canvas>
     <div class="stats">
       <span>KEYS: <span id="keyCount">0</span>/3</span>
+      <span id="timerDisplay" style="margin-left: 20px;">03:00</span>
     </div>
     
     <!-- Mobile controls -->
@@ -40,9 +41,1365 @@
     </div>
   </div>
   
-  <script src="src/maze.js"></script>
-  <script src="src/player.js"></script>
-  <script src="src/collectibles.js"></script>
-  <script src="src/game.js"></script>
+  <script>
+    // PowerUp class
+    class PowerUp {
+      constructor(type, x, y) {
+        this.type = type; // 'speed', 'time', or 'reveal'
+        this.x = x;
+        this.y = y;
+        this.collected = false;
+        
+        // Properties based on type
+        switch(type) {
+          case 'speed':
+            this.color = '#00FFFF'; // Cyan
+            break;
+          case 'time':
+            this.color = '#00FF00'; // Lime green
+            break;
+          case 'reveal':
+            this.color = '#FF00FF'; // Magenta
+            break;
+        }
+      }
+      
+      render(ctx, cellSize, maze) {
+        if (this.collected) return;
+        
+        // Skip if not visible in fog of war mode
+        if (maze.fogOfWarEnabled && !maze.isVisible(this.x, this.y) && !maze.explored[this.y][this.x]) return;
+        
+        // Set opacity based on visibility
+        if (maze.fogOfWarEnabled) {
+          if (maze.isVisible(this.x, this.y)) {
+            ctx.globalAlpha = 1.0; // Currently visible
+          } else if (maze.explored[this.y][this.x]) {
+            ctx.globalAlpha = maze.exploredOpacity; // Explored but not currently visible
+          }
+        } else {
+          ctx.globalAlpha = 1.0; // No fog of war
+        }
+        
+        const centerX = this.x * cellSize + cellSize / 2;
+        const centerY = this.y * cellSize + cellSize / 2;
+        
+        // Power-up size (80% of cell)
+        const size = cellSize * 0.8;
+        
+        // Pulsating effect
+        const pulse = Math.sin(Date.now() / 200) * 0.1 + 0.9; // Subtle pulse between 0.8 and 1.0
+        ctx.globalAlpha *= pulse;
+        
+        // Draw power-up
+        ctx.fillStyle = this.color;
+        ctx.shadowColor = this.color;
+        ctx.shadowBlur = 8;
+        
+        // Draw as a glow square
+        ctx.fillRect(
+          centerX - size/2,
+          centerY - size/2,
+          size,
+          size
+        );
+        
+        // Reset shadow
+        ctx.shadowBlur = 0;
+        ctx.globalAlpha = 1.0;
+      }
+    }
+    
+    class Maze {
+      constructor(width = 20, height = 20, cellSize = 20) {
+        this.width = width;
+        this.height = height;
+        this.cellSize = cellSize;
+        this.grid = [];
+        this.explored = [];
+        this.visible = []; // Currently visible cells
+        
+        // Fog of war configuration with sensible defaults
+        this.fogOfWarEnabled = true;
+        this.visibilityRadius = 3; // How far the player can see
+        this.exploredOpacity = 0.4; // 40% opacity for explored areas
+        
+        // Colors for the pixelated style
+        this.colors = {
+          background: '#0a0a12',
+          wall: '#405060',
+          wallShade: '#304050',
+          explored: '#162030',
+          pathlight: '#233344',
+          outOfBounds: '#080810'
+        };
+        
+        // Player tracking
+        this.lastPlayerX = 0;
+        this.lastPlayerY = 0;
+        this.playerHistory = [];
+        
+        // Initialize and generate the maze
+        this.initializeGrid();
+        this.generateMaze();
+      }
+    
+      initializeGrid() {
+        // Initialize grid with walls
+        for (let y = 0; y < this.height; y++) {
+          this.grid[y] = [];
+          this.explored[y] = [];
+          this.visible[y] = [];
+          for (let x = 0; x < this.width; x++) {
+            this.grid[y][x] = {
+              x: x,
+              y: y,
+              walls: { top: true, right: true, bottom: true, left: true },
+              visited: false
+            };
+            this.explored[y][x] = false;
+            this.visible[y][x] = false;
+          }
+        }
+      }
+    
+      generateMaze() {
+        // Depth-first search with backtracking
+        const stack = [];
+        let current = this.grid[0][0];
+        current.visited = true;
+    
+        // Set entry and exit
+        this.grid[0][0].walls.top = false; // Entry
+        this.grid[this.height - 1][this.width - 1].walls.bottom = false; // Exit
+    
+        do {
+          const neighbors = this.getUnvisitedNeighbors(current);
+          
+          if (neighbors.length > 0) {
+            // Choose a random neighbor
+            const next = neighbors[Math.floor(Math.random() * neighbors.length)];
+            stack.push(current);
+            
+            // Remove walls between current and next cell
+            this.removeWalls(current, next);
+            
+            current = next;
+            current.visited = true;
+          } else if (stack.length > 0) {
+            current = stack.pop();
+          }
+        } while (stack.length > 0);
+      }
+    
+      getUnvisitedNeighbors(cell) {
+        const neighbors = [];
+        const { x, y } = cell;
+        const directions = [
+          { x: 0, y: -1, name: 'top' },    // Top
+          { x: 1, y: 0, name: 'right' },   // Right
+          { x: 0, y: 1, name: 'bottom' },  // Bottom
+          { x: -1, y: 0, name: 'left' }    // Left
+        ];
+    
+        directions.forEach(dir => {
+          const nx = x + dir.x;
+          const ny = y + dir.y;
+          
+          if (nx >= 0 && nx < this.width && ny >= 0 && ny < this.height) {
+            if (!this.grid[ny][nx].visited) {
+              neighbors.push(this.grid[ny][nx]);
+            }
+          }
+        });
+    
+        return neighbors;
+      }
+    
+      removeWalls(a, b) {
+        const dx = a.x - b.x;
+        const dy = a.y - b.y;
+    
+        if (dx === 1) {
+          a.walls.left = false;
+          b.walls.right = false;
+        } else if (dx === -1) {
+          a.walls.right = false;
+          b.walls.left = false;
+        }
+    
+        if (dy === 1) {
+          a.walls.top = false;
+          b.walls.bottom = false;
+        } else if (dy === -1) {
+          a.walls.bottom = false;
+          b.walls.top = false;
+        }
+      }
+    
+      render(ctx) {
+        // Draw dark background for fog of war
+        if (this.fogOfWarEnabled) {
+          ctx.fillStyle = this.colors.outOfBounds;
+          ctx.fillRect(0, 0, this.width * this.cellSize, this.height * this.cellSize);
+        }
+    
+        // Draw all cells
+        for (let y = 0; y < this.height; y++) {
+          for (let x = 0; x < this.width; x++) {
+            const cell = this.grid[y][x];
+            const isExplored = this.explored[y][x];
+            const isVisible = this.visible[y][x];
+            const isEntrance = x === 0 && y === 0;
+            const isExit = x === this.width - 1 && y === this.height - 1;
+            
+            // Skip cells that haven't been explored when fog of war is enabled
+            if (this.fogOfWarEnabled && !isExplored && !isEntrance && !isExit) continue;
+            
+            // Set opacity based on visibility status
+            if (this.fogOfWarEnabled) {
+              if (isVisible || isEntrance || isExit) {
+                ctx.globalAlpha = 1.0; // Currently visible
+              } else if (isExplored) {
+                ctx.globalAlpha = this.exploredOpacity; // Explored but not currently visible
+              }
+            } else {
+              ctx.globalAlpha = 1.0; // No fog of war, full visibility
+            }
+    
+            const startX = x * this.cellSize;
+            const startY = y * this.cellSize;
+            
+            // Draw cell background for explored areas with pixelated texture
+            if (isExplored || !this.fogOfWarEnabled || isEntrance || isExit) {
+              // Special treatment for entrance and exit
+              if (isEntrance) {
+                // Entrance - blue portal
+                ctx.fillStyle = '#0066cc';
+                ctx.fillRect(startX, startY, this.cellSize, this.cellSize);
+                
+                // Portal effect
+                ctx.fillStyle = '#00aaff';
+                ctx.fillRect(startX + this.cellSize * 0.2, startY + this.cellSize * 0.2, 
+                            this.cellSize * 0.6, this.cellSize * 0.6);
+                            
+                // Entrance label
+                ctx.fillStyle = '#ffffff';
+                ctx.font = `${Math.max(10, this.cellSize/2)}px VT323, monospace`;
+                ctx.textAlign = 'center';
+                ctx.fillText('IN', startX + this.cellSize/2, startY + this.cellSize/1.5);
+              } 
+              else if (isExit) {
+                // Exit - red portal
+                ctx.fillStyle = '#cc0066';
+                ctx.fillRect(startX, startY, this.cellSize, this.cellSize);
+                
+                // Portal effect
+                ctx.fillStyle = '#ff00aa';
+                ctx.fillRect(startX + this.cellSize * 0.2, startY + this.cellSize * 0.2, 
+                            this.cellSize * 0.6, this.cellSize * 0.6);
+                            
+                // Exit label
+                ctx.fillStyle = '#ffffff';
+                ctx.font = `${Math.max(10, this.cellSize/2)}px VT323, monospace`;
+                ctx.textAlign = 'center';
+                ctx.fillText('OUT', startX + this.cellSize/2, startY + this.cellSize/1.5);
+              } 
+              else {
+                // Regular cell background
+                ctx.fillStyle = isVisible ? this.colors.pathlight : this.colors.explored;
+                ctx.fillRect(startX, startY, this.cellSize, this.cellSize);
+                
+                // Add pixelated noise texture to the cell
+                if (isVisible) {
+                  ctx.fillStyle = this.colors.pathlight;
+                  for (let i = 0; i < 3; i++) {
+                    const noiseX = startX + Math.floor(Math.random() * this.cellSize);
+                    const noiseY = startY + Math.floor(Math.random() * this.cellSize);
+                    const noiseSize = Math.max(1, Math.floor(this.cellSize / 10));
+                    ctx.fillRect(noiseX, noiseY, noiseSize, noiseSize);
+                  }
+                }
+              }
+            }
+            
+            // Draw walls with pixelated style
+            ctx.fillStyle = this.colors.wall;
+            
+            // Top wall
+            if (cell.walls.top) {
+              ctx.fillRect(startX, startY, this.cellSize, this.cellSize / 5);
+              // Add pixelation to wall
+              ctx.fillStyle = this.colors.wallShade;
+              for (let i = 0; i < this.cellSize; i += Math.max(2, this.cellSize / 10)) {
+                ctx.fillRect(startX + i, startY, Math.max(1, this.cellSize / 10), this.cellSize / 10);
+              }
+            }
+            
+            // Right wall
+            if (cell.walls.right) {
+              ctx.fillStyle = this.colors.wall;
+              ctx.fillRect(startX + this.cellSize - this.cellSize / 5, startY, this.cellSize / 5, this.cellSize);
+              // Add pixelation to wall
+              ctx.fillStyle = this.colors.wallShade;
+              for (let i = 0; i < this.cellSize; i += Math.max(2, this.cellSize / 10)) {
+                ctx.fillRect(startX + this.cellSize - this.cellSize / 10, startY + i, this.cellSize / 10, Math.max(1, this.cellSize / 10));
+              }
+            }
+            
+            // Bottom wall
+            if (cell.walls.bottom) {
+              ctx.fillStyle = this.colors.wall;
+              ctx.fillRect(startX, startY + this.cellSize - this.cellSize / 5, this.cellSize, this.cellSize / 5);
+              // Add pixelation to wall
+              ctx.fillStyle = this.colors.wallShade;
+              for (let i = 0; i < this.cellSize; i += Math.max(2, this.cellSize / 10)) {
+                ctx.fillRect(startX + i, startY + this.cellSize - this.cellSize / 10, Math.max(1, this.cellSize / 10), this.cellSize / 10);
+              }
+            }
+            
+            // Left wall
+            if (cell.walls.left) {
+              ctx.fillStyle = this.colors.wall;
+              ctx.fillRect(startX, startY, this.cellSize / 5, this.cellSize);
+              // Add pixelation to wall
+              ctx.fillStyle = this.colors.wallShade;
+              for (let i = 0; i < this.cellSize; i += Math.max(2, this.cellSize / 10)) {
+                ctx.fillRect(startX, startY + i, this.cellSize / 10, Math.max(1, this.cellSize / 10));
+              }
+            }
+          }
+        }
+        ctx.globalAlpha = 1.0;
+      }
+    
+      // Check if a move from current position to newX, newY is valid
+      isValidMove(currentX, currentY, newX, newY) {
+        // Check if the new position is out of bounds
+        if (newX < 0 || newX >= this.width || newY < 0 || newY >= this.height) {
+          return false;
+        }
+    
+        // Calculate direction of movement
+        const dx = newX - currentX;
+        const dy = newY - currentY;
+    
+        // Check if trying to move through a wall
+        if (dx === 1 && this.grid[currentY][currentX].walls.right) return false; // Moving right
+        if (dx === -1 && this.grid[currentY][currentX].walls.left) return false; // Moving left
+        if (dy === 1 && this.grid[currentY][currentX].walls.bottom) return false; // Moving down
+        if (dy === -1 && this.grid[currentY][currentX].walls.top) return false; // Moving up
+    
+        return true;
+      }
+      
+      // Mark a cell as explored
+      exploreCell(x, y) {
+        if (x >= 0 && x < this.width && y >= 0 && y < this.height) {
+          this.explored[y][x] = true;
+        }
+      }
+      
+      // Toggle fog of war
+      toggleFogOfWar() {
+        this.fogOfWarEnabled = !this.fogOfWarEnabled;
+        this.updateVisibility(this.lastPlayerX, this.lastPlayerY);
+        return this.fogOfWarEnabled;
+      }
+      
+      // Update visibility based on player position
+      updateVisibility(playerX, playerY) {
+        // Store last player position
+        this.lastPlayerX = playerX;
+        this.lastPlayerY = playerY;
+        
+        // Add to player history
+        this.playerHistory.push({ x: playerX, y: playerY });
+        
+        // Reset visibility
+        for (let y = 0; y < this.height; y++) {
+          for (let x = 0; x < this.width; x++) {
+            this.visible[y][x] = false;
+          }
+        }
+        
+        if (!this.fogOfWarEnabled) {
+          // If fog of war is disabled, all cells are visible
+          for (let y = 0; y < this.height; y++) {
+            for (let x = 0; x < this.width; x++) {
+              this.visible[y][x] = true;
+            }
+          }
+          return;
+        }
+    
+        // Mark cells within visibility radius as visible
+        this.calculateVisibility(playerX, playerY);
+      }
+      
+      // Calculate which cells are visible from player position
+      calculateVisibility(playerX, playerY) {
+        // Mark current cell as visible and explored
+        this.visible[playerY][playerX] = true;
+        this.explored[playerY][playerX] = true;
+        
+        // Cast rays in all directions to find visible cells
+        for (let angle = 0; angle < 360; angle += 10) {
+          this.castRay(playerX, playerY, angle);
+        }
+      }
+      
+      // Cast a ray from origin point at given angle
+      castRay(originX, originY, angleDegrees) {
+        const angleRadians = angleDegrees * Math.PI / 180;
+        // Use the current visibility radius
+        const rayLength = this.visibilityRadius;
+        
+        let prevX = originX;
+        let prevY = originY;
+        
+        for (let i = 0; i <= rayLength * 2; i += 0.1) {
+          // Calculate cell coordinates along the ray
+          const cellX = Math.floor(originX + Math.cos(angleRadians) * i);
+          const cellY = Math.floor(originY + Math.sin(angleRadians) * i);
+          
+          // Stop if out of bounds
+          if (cellX < 0 || cellX >= this.width || cellY < 0 || cellY >= this.height) {
+            break;
+          }
+          
+          // Mark cell as visible and explored
+          this.visible[cellY][cellX] = true;
+          this.explored[cellY][cellX] = true;
+          
+          // Check if we hit a wall
+          if (prevX !== cellX || prevY !== cellY) {
+            // Moving right and there's a wall
+            if (cellX > prevX && this.grid[prevY][prevX].walls.right) {
+              break;
+            }
+            // Moving left and there's a wall
+            if (cellX < prevX && this.grid[cellY][cellX].walls.right) {
+              break;
+            }
+            // Moving down and there's a wall
+            if (cellY > prevY && this.grid[prevY][prevX].walls.bottom) {
+              break;
+            }
+            // Moving up and there's a wall
+            if (cellY < prevY && this.grid[cellY][cellX].walls.bottom) {
+              break;
+            }
+            
+            prevX = cellX;
+            prevY = cellY;
+          }
+        }
+      }
+      
+      // Check if a cell is currently visible
+      isVisible(x, y) {
+        if (x < 0 || x >= this.width || y < 0 || y >= this.height) {
+          return false;
+        }
+        return this.visible[y][x];
+      }
+      
+      // Reveal the entire maze (for reveal power-up)
+      revealAllCells() {
+        for (let y = 0; y < this.height; y++) {
+          for (let x = 0; x < this.width; x++) {
+            this.visible[y][x] = true;
+            this.explored[y][x] = true;
+          }
+        }
+      }
+    }
+    
+    class Player {
+      constructor(maze, x = 0, y = 0) {
+        this.maze = maze;
+        this.x = x;
+        this.y = y;
+        this.keys = 0;
+        this.speedBoost = false;
+        this.moveCooldown = 0;
+        this.defaultMoveCooldown = 150; // Default movement throttle in ms
+        this.movementEnabled = true;
+        
+        // Mark starting position as explored
+        this.maze.exploreCell(this.x, this.y);
+        
+        // Update visibility around player
+        this.updateVisibility();
+      }
+    
+      move(direction) {
+        if (!this.movementEnabled) return false;
+        
+        // Check if movement cooldown has passed
+        const now = Date.now();
+        if (now < this.moveCooldown) return false;
+        
+        // Set cooldown time for next move
+        this.moveCooldown = now + (this.speedBoost ? this.defaultMoveCooldown / 2 : this.defaultMoveCooldown);
+        
+        let newX = this.x;
+        let newY = this.y;
+    
+        switch (direction) {
+          case 'up':
+            newY--;
+            break;
+          case 'right':
+            newX++;
+            break;
+          case 'down':
+            newY++;
+            break;
+          case 'left':
+            newX--;
+            break;
+        }
+    
+        if (this.maze.isValidMove(this.x, this.y, newX, newY)) {
+          this.x = newX;
+          this.y = newY;
+          
+          // Mark the new cell as explored
+          this.maze.exploreCell(this.x, this.y);
+          
+          // Update visibility around player
+          this.updateVisibility();
+          
+          return true;
+        }
+        return false;
+      }
+      
+      // Update visibility around player
+      updateVisibility() {
+        this.maze.updateVisibility(this.x, this.y);
+      }
+    
+      render(ctx) {
+        const cellSize = this.maze.cellSize;
+        const startX = this.x * cellSize;
+        const startY = this.y * cellSize;
+        const playerSize = cellSize * 0.7;
+        const offsetX = (cellSize - playerSize) / 2;
+        const offsetY = (cellSize - playerSize) / 2;
+    
+        // Draw player base (character sprite) - pixelated style
+        // Character body
+        ctx.fillStyle = this.speedBoost ? '#8af' : '#5af'; // Brighter when speed boosted
+        ctx.fillRect(startX + offsetX, startY + offsetY, playerSize, playerSize);
+        
+        // Inner details (pixelated face)
+        ctx.fillStyle = this.speedBoost ? '#5cf' : '#3af';
+        const headSize = playerSize * 0.6;
+        const headOffsetX = (cellSize - headSize) / 2;
+        const headOffsetY = (cellSize - headSize) / 2;
+        ctx.fillRect(startX + headOffsetX, startY + headOffsetY, headSize, headSize);
+        
+        // Eyes
+        ctx.fillStyle = '#fff';
+        const eyeSize = Math.max(2, Math.floor(cellSize / 10));
+        // Left eye
+        ctx.fillRect(startX + headOffsetX + headSize * 0.25 - eyeSize/2, 
+                     startY + headOffsetY + headSize * 0.35, eyeSize, eyeSize);
+        // Right eye
+        ctx.fillRect(startX + headOffsetX + headSize * 0.75 - eyeSize/2, 
+                     startY + headOffsetY + headSize * 0.35, eyeSize, eyeSize);
+        
+        // Add light effect (glow) around the player
+        ctx.beginPath();
+        ctx.arc(startX + cellSize/2, startY + cellSize/2, 
+                cellSize * 0.8, 0, Math.PI * 2);
+        const gradient = ctx.createRadialGradient(
+          startX + cellSize/2, startY + cellSize/2, 0,
+          startX + cellSize/2, startY + cellSize/2, cellSize * 0.8
+        );
+        
+        if (this.speedBoost) {
+          gradient.addColorStop(0, 'rgba(120, 220, 255, 0.5)');
+          gradient.addColorStop(1, 'rgba(0, 120, 220, 0)');
+        } else {
+          gradient.addColorStop(0, 'rgba(100, 200, 255, 0.4)');
+          gradient.addColorStop(1, 'rgba(0, 100, 200, 0)');
+        }
+        
+        ctx.fillStyle = gradient;
+        ctx.fill();
+      }
+    
+      collectKey() {
+        this.keys++;
+        document.getElementById('keyCount').textContent = this.keys;
+        return this.keys;
+      }
+      
+      // Apply speed boost power-up
+      applySpeedBoost(duration = 5000) {
+        this.speedBoost = true;
+        setTimeout(() => {
+          this.speedBoost = false;
+        }, duration);
+      }
+      
+      // Disable player movement (for game over)
+      disableMovement() {
+        this.movementEnabled = false;
+      }
+      
+      // Enable player movement (for reset)
+      enableMovement() {
+        this.movementEnabled = true;
+      }
+    }
+    
+    class Collectibles {
+      constructor(maze, count = 3) {
+        this.maze = maze;
+        this.items = [];
+        this.generateKeys(count);
+      }
+    
+      generateKeys(count) {
+        // Clear existing items
+        this.items = [];
+        
+        // Set max attempts to prevent infinite loop
+        const maxAttempts = 100;
+        let attempts = 0;
+        
+        while (this.items.length < count && attempts < maxAttempts) {
+          attempts++;
+          
+          // Generate random position
+          const x = Math.floor(Math.random() * this.maze.width);
+          const y = Math.floor(Math.random() * this.maze.height);
+          
+          // Don't put keys at start or end positions
+          if ((x === 0 && y === 0) || 
+              (x === this.maze.width - 1 && y === this.maze.height - 1)) {
+            continue;
+          }
+          
+          // Check if position is already used
+          if (!this.items.some(item => item.x === x && item.y === y)) {
+            this.items.push({
+              x,
+              y,
+              type: 'key',
+              collected: false
+            });
+          }
+        }
+      }
+    
+      checkCollection(playerX, playerY) {
+        for (let i = 0; i < this.items.length; i++) {
+          const item = this.items[i];
+          if (!item.collected && item.x === playerX && item.y === playerY) {
+            item.collected = true;
+            return item.type;
+          }
+        }
+        return null;
+      }
+    
+      render(ctx) {
+        const cellSize = this.maze.cellSize;
+        
+        for (let i = 0; i < this.items.length; i++) {
+          const item = this.items[i];
+          
+          // Skip if collected
+          if (item.collected) continue;
+          
+          // Skip if not visible in fog of war mode
+          if (this.maze.fogOfWarEnabled && !this.maze.isVisible(item.x, item.y) && !this.maze.explored[item.y][item.x]) continue;
+          
+          // Set opacity based on visibility
+          if (this.maze.fogOfWarEnabled) {
+            if (this.maze.isVisible(item.x, item.y)) {
+              ctx.globalAlpha = 1.0; // Currently visible
+            } else if (this.maze.explored[item.y][item.x]) {
+              ctx.globalAlpha = this.maze.exploredOpacity; // Explored but not currently visible
+            }
+          } else {
+            ctx.globalAlpha = 1.0; // No fog of war
+          }
+          
+          const centerX = item.x * cellSize + cellSize / 2;
+          const centerY = item.y * cellSize + cellSize / 2;
+          
+          // Draw key (pixelated style)
+          const keySize = cellSize * 0.6;
+          const keyX = centerX - keySize / 2;
+          const keyY = centerY - keySize / 2;
+          
+          // Key base
+          ctx.fillStyle = '#fa0';
+          ctx.fillRect(keyX, keyY, keySize, keySize);
+          
+          // Key details
+          ctx.fillStyle = '#fc0';
+          ctx.fillRect(keyX + keySize * 0.2, keyY + keySize * 0.2, keySize * 0.6, keySize * 0.6);
+          
+          // Key teeth (pixelated)
+          ctx.fillStyle = '#ff0';
+          const teethSize = Math.max(2, Math.floor(cellSize / 10));
+          ctx.fillRect(keyX + keySize * 0.3, keyY + keySize * 0.3, teethSize, teethSize);
+          ctx.fillRect(keyX + keySize * 0.6, keyY + keySize * 0.4, teethSize, teethSize);
+          ctx.fillRect(keyX + keySize * 0.4, keyY + keySize * 0.6, teethSize, teethSize);
+          
+          // Add glow effect
+          ctx.beginPath();
+          ctx.arc(centerX, centerY, keySize * 0.8, 0, Math.PI * 2);
+          const gradient = ctx.createRadialGradient(
+            centerX, centerY, 0,
+            centerX, centerY, keySize * 0.8
+          );
+          gradient.addColorStop(0, 'rgba(255, 200, 100, 0.3)');
+          gradient.addColorStop(1, 'rgba(255, 150, 0, 0)');
+          ctx.fillStyle = gradient;
+          ctx.fill();
+        }
+        
+        ctx.globalAlpha = 1.0;
+      }
+    }
+    
+    class Game {
+      constructor(canvasId, mazeWidth = 20, mazeHeight = 20, cellSize = 20) {
+        this.canvas = document.getElementById(canvasId);
+        this.ctx = this.canvas.getContext('2d');
+        
+        // Game configuration
+        this.mazeWidth = mazeWidth;
+        this.mazeHeight = mazeHeight;
+        this.cellSize = cellSize;
+        this.keyCount = 3;
+        
+        // New variables for countdown timer and power-ups
+        this.countdownTimer = 180; // 3 minutes in seconds
+        this.timerInterval = null;
+        this.powerUps = [];
+        this.currentMessage = '';
+        this.messageTimeout = null;
+        this.gameOver = false;
+        
+        // Set canvas size
+        this.canvas.width = this.mazeWidth * this.cellSize;
+        this.canvas.height = this.mazeHeight * this.cellSize;
+        
+        this.init();
+      }
+      
+      init() {
+        // Initialize maze
+        this.maze = new Maze(this.mazeWidth, this.mazeHeight, this.cellSize);
+        
+        // Initialize player at the entry point (top-left)
+        this.player = new Player(this.maze, 0, 0);
+        
+        // Initialize collectibles
+        this.collectibles = new Collectibles(this.maze, this.keyCount);
+        
+        // Generate power-ups
+        this.generatePowerUps();
+        
+        // Reset game state
+        this.gameOver = false;
+        this.currentMessage = '';
+        if (this.messageTimeout) clearTimeout(this.messageTimeout);
+        this.player.enableMovement();
+        
+        // Reset and start the timer
+        this.countdownTimer = 180;
+        this.updateTimerDisplay();
+        this.startTimer();
+        
+        // Set up event listeners
+        this.setupInput();
+        
+        // Pixelated boot screen animation
+        this.showBootSequence(() => {
+          // Start game loop after boot animation
+          this.lastTime = 0;
+          requestAnimationFrame(this.gameLoop.bind(this));
+        });
+      }
+      
+      // Generate power-ups on empty floor tiles
+      generatePowerUps() {
+        this.powerUps = [];
+        const powerUpTypes = ['speed', 'time', 'reveal'];
+        
+        // For each power-up type
+        for (const type of powerUpTypes) {
+          // Find a random empty floor tile
+          let placed = false;
+          let attempts = 0;
+          const maxAttempts = 100;
+          
+          while (!placed && attempts < maxAttempts) {
+            attempts++;
+            
+            // Generate random position
+            const x = Math.floor(Math.random() * this.maze.width);
+            const y = Math.floor(Math.random() * this.maze.height);
+            
+            // Skip entrance, exit, and cells with keys
+            if ((x === 0 && y === 0) || 
+                (x === this.maze.width - 1 && y === this.maze.height - 1) ||
+                this.collectibles.items.some(item => item.x === x && item.y === y) ||
+                this.powerUps.some(powerUp => powerUp.x === x && powerUp.y === y)) {
+              continue;
+            }
+            
+            // Place the power-up
+            this.powerUps.push(new PowerUp(type, x, y));
+            placed = true;
+          }
+        }
+      }
+      
+      // Display a flash message in the HUD
+      flashMessage(text, ms = 1500) {
+        this.currentMessage = text;
+        if (this.messageTimeout) clearTimeout(this.messageTimeout);
+        this.messageTimeout = setTimeout(() => {
+          this.currentMessage = '';
+        }, ms);
+      }
+      
+      // Start the countdown timer
+      startTimer() {
+        if (this.timerInterval) clearInterval(this.timerInterval);
+        
+        this.timerInterval = setInterval(() => {
+          this.countdownTimer--;
+          this.updateTimerDisplay();
+          
+          if (this.countdownTimer <= 0) {
+            clearInterval(this.timerInterval);
+            this.handleTimeUp();
+          }
+        }, 1000);
+      }
+      
+      // Update the timer display
+      updateTimerDisplay() {
+        const minutes = Math.floor(this.countdownTimer / 60);
+        const seconds = this.countdownTimer % 60;
+        document.getElementById('timerDisplay').textContent = 
+          `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+      }
+      
+      // Handle when time runs out
+      handleTimeUp() {
+        this.gameOver = true;
+        this.player.disableMovement();
+        this.showTimeUpScreen();
+      }
+      
+      // Show time's up screen
+      showTimeUpScreen() {
+        // Create time's up screen container
+        const timeUpScreen = document.createElement('div');
+        timeUpScreen.className = 'victory-screen';
+        
+        // Time's up content
+        timeUpScreen.innerHTML = `
+          <div class="victory-title">TIME'S UP</div>
+          <div class="victory-message">GAME OVER</div>
+          <div class="victory-stats">KEYS COLLECTED: ${this.player.keys}/${this.keyCount}</div>
+          <button class="play-again-btn">PLAY AGAIN</button>
+        `;
+        
+        // Add to body
+        document.body.appendChild(timeUpScreen);
+        
+        // Add event listener to play again button
+        const playAgainBtn = timeUpScreen.querySelector('.play-again-btn');
+        playAgainBtn.addEventListener('click', () => {
+          document.body.removeChild(timeUpScreen);
+          this.init();
+        });
+      }
+      
+      // Show pixelated boot sequence animation
+      showBootSequence(callback) {
+        this.ctx.fillStyle = '#0a0a12';
+        this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+        this.ctx.fillStyle = '#9acdff';
+        this.ctx.font = '20px VT323, monospace';
+        this.ctx.textAlign = 'center';
+        
+        const bootText = [
+          'LOADING FOG OF WAR SYSTEM',
+          'INITIALIZING MAZE GENERATORS',
+          'CALIBRATING VISIBILITY CALCULATIONS',
+          'RENDERING PIXELATED ENVIRONMENT',
+          'SYSTEM READY'
+        ];
+        
+        let currentLine = 0;
+        const textY = this.canvas.height / 2 - 40;
+        const lineHeight = 30;
+        
+        const typeText = () => {
+          if (currentLine >= bootText.length) {
+            setTimeout(callback, 500);
+            return;
+          }
+          
+          const text = bootText[currentLine];
+          this.ctx.fillText(text, this.canvas.width / 2, textY + currentLine * lineHeight);
+          currentLine++;
+          
+          // Progress bar
+          const progress = currentLine / bootText.length;
+          this.ctx.fillStyle = '#304050';
+          this.ctx.fillRect(this.canvas.width * 0.2, this.canvas.height * 0.6, 
+                           this.canvas.width * 0.6, 10);
+          this.ctx.fillStyle = '#5af';
+          this.ctx.fillRect(this.canvas.width * 0.2, this.canvas.height * 0.6, 
+                           this.canvas.width * 0.6 * progress, 10);
+          this.ctx.fillStyle = '#9acdff';
+          
+          setTimeout(typeText, 400);
+        };
+        
+        typeText();
+      }
+      
+      setupInput() {
+        // Keyboard controls
+        document.addEventListener('keydown', (event) => {
+          // Handle arrow keys
+          switch (event.key) {
+            case 'ArrowUp':
+              this.handleMove('up');
+              event.preventDefault();
+              break;
+            case 'ArrowRight':
+              this.handleMove('right');
+              event.preventDefault();
+              break;
+            case 'ArrowDown':
+              this.handleMove('down');
+              event.preventDefault();
+              break;
+            case 'ArrowLeft':
+              this.handleMove('left');
+              event.preventDefault();
+              break;
+            case 'f':
+              // Toggle fog of war
+              this.maze.toggleFogOfWar();
+              break;
+            case 'r':
+              // Reset game (always works, even when time's up)
+              if (this.gameOver) {
+                const timeUpScreen = document.querySelector('.victory-screen');
+                if (timeUpScreen) document.body.removeChild(timeUpScreen);
+              }
+              this.init();
+              break;
+          }
+        });
+        
+        // Mobile touch controls
+        this.setupMobileControls();
+        
+        // Responsive canvas sizing
+        window.addEventListener('resize', this.handleResize.bind(this));
+        this.handleResize();
+      }
+      
+      // Set up mobile touch controls
+      setupMobileControls() {
+        // Direction buttons
+        const upBtn = document.getElementById('up-btn');
+        const rightBtn = document.getElementById('right-btn');
+        const downBtn = document.getElementById('down-btn');
+        const leftBtn = document.getElementById('left-btn');
+        
+        // Action buttons
+        const fogBtn = document.getElementById('fog-btn');
+        const resetBtn = document.getElementById('reset-btn');
+        
+        // Add touch event listeners
+        if (upBtn) {
+          upBtn.addEventListener('click', () => this.handleMove('up'));
+          upBtn.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            this.handleMove('up');
+          });
+        }
+        
+        if (rightBtn) {
+          rightBtn.addEventListener('click', () => this.handleMove('right'));
+          rightBtn.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            this.handleMove('right');
+          });
+        }
+        
+        if (downBtn) {
+          downBtn.addEventListener('click', () => this.handleMove('down'));
+          downBtn.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            this.handleMove('down');
+          });
+        }
+        
+        if (leftBtn) {
+          leftBtn.addEventListener('click', () => this.handleMove('left'));
+          leftBtn.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            this.handleMove('left');
+          });
+        }
+        
+        if (fogBtn) {
+          fogBtn.addEventListener('click', () => this.maze.toggleFogOfWar());
+          fogBtn.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            this.maze.toggleFogOfWar();
+          });
+        }
+        
+        if (resetBtn) {
+          resetBtn.addEventListener('click', () => {
+            if (this.gameOver) {
+              const timeUpScreen = document.querySelector('.victory-screen');
+              if (timeUpScreen) document.body.removeChild(timeUpScreen);
+            }
+            this.init();
+          });
+          resetBtn.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            if (this.gameOver) {
+              const timeUpScreen = document.querySelector('.victory-screen');
+              if (timeUpScreen) document.body.removeChild(timeUpScreen);
+            }
+            this.init();
+          });
+        }
+      }
+      
+      // Handle window resize for responsive sizing
+      handleResize() {
+        const isMobile = window.innerWidth <= 768;
+        
+        if (isMobile) {
+          // Smaller maze for mobile
+          const mobileScale = Math.min(1, window.innerWidth / (this.mazeWidth * this.cellSize + 20));
+          
+          // Scale the canvas
+          this.canvas.style.transformOrigin = 'top left';
+          this.canvas.style.transform = `scale(${mobileScale})`;
+          
+          // Ensure the container accommodates the scaled canvas
+          const gameContainer = document.querySelector('.game-container');
+          if (gameContainer) {
+            gameContainer.style.height = 'auto';
+            gameContainer.style.width = `${this.mazeWidth * this.cellSize * mobileScale}px`;
+          }
+        } else {
+          // Reset for desktop
+          this.canvas.style.transform = 'none';
+          this.canvas.style.width = `${this.mazeWidth * this.cellSize}px`;
+          this.canvas.style.height = `${this.mazeHeight * this.cellSize}px`;
+        }
+      }
+      
+      // Check for power-up collection
+      checkPowerUpCollection() {
+        for (let i = 0; i < this.powerUps.length; i++) {
+          const powerUp = this.powerUps[i];
+          if (!powerUp.collected && powerUp.x === this.player.x && powerUp.y === this.player.y) {
+            this.applyPowerUp(powerUp);
+            powerUp.collected = true;
+          }
+        }
+      }
+      
+      // Apply power-up effect
+      applyPowerUp(powerUp) {
+        switch(powerUp.type) {
+          case 'speed':
+            this.player.applySpeedBoost(5000);
+            this.flashMessage("SPEED BOOST!");
+            break;
+          case 'time':
+            this.countdownTimer += 15;
+            this.updateTimerDisplay();
+            this.flashMessage("+15 SECONDS!");
+            break;
+          case 'reveal':
+            // Store original fog setting
+            const wasEnabled = this.maze.fogOfWarEnabled;
+            // Temporarily reveal the entire maze
+            this.maze.revealAllCells();
+            this.flashMessage("MAP REVEALED!");
+            
+            // Restore fog after duration
+            setTimeout(() => {
+              if (wasEnabled) {
+                // Only update visibility if fog was enabled originally
+                this.maze.updateVisibility(this.player.x, this.player.y);
+              }
+            }, 8000);
+            break;
+        }
+      }
+      
+      handleMove(direction) {
+        if (this.gameOver) return;
+        
+        if (this.player.move(direction)) {
+          // Check if player collected anything
+          const collectedType = this.collectibles.checkCollection(this.player.x, this.player.y);
+          
+          if (collectedType === 'key') {
+            this.player.collectKey();
+          }
+          
+          // Check for power-up collection
+          this.checkPowerUpCollection();
+          
+          // Check if player reached the exit with all keys
+          if (this.player.x === this.mazeWidth - 1 && 
+              this.player.y === this.mazeHeight - 1 &&
+              this.player.keys === this.keyCount) {
+            setTimeout(() => {
+              this.showVictoryScreen();
+            }, 300);
+          }
+        }
+      }
+      
+      gameLoop(timestamp) {
+        // Calculate delta time
+        const deltaTime = timestamp - this.lastTime;
+        this.lastTime = timestamp;
+        
+        // Clear canvas
+        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+        
+        // Add pixelation effect
+        this.ctx.imageSmoothingEnabled = false;
+        
+        // Render maze
+        this.maze.render(this.ctx);
+        
+        // Render collectibles
+        this.collectibles.render(this.ctx);
+        
+        // Render power-ups
+        this.powerUps.forEach(powerUp => {
+          powerUp.render(this.ctx, this.cellSize, this.maze);
+        });
+        
+        // Render player
+        this.player.render(this.ctx);
+        
+        // Render flash messages
+        if (this.currentMessage) {
+          this.renderMessage(this.currentMessage);
+        }
+        
+        // Add screen effect (scanlines)
+        this.renderScreenEffect();
+        
+        // Continue game loop
+        requestAnimationFrame(this.gameLoop.bind(this));
+      }
+      
+      // Render flash message
+      renderMessage(message) {
+        const ctx = this.ctx;
+        ctx.save();
+        
+        ctx.font = '24px VT323, monospace';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        
+        // Position in the middle of maze, near the top
+        const x = this.canvas.width / 2;
+        const y = 40;
+        
+        // Drop shadow for better visibility
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+        ctx.fillText(message, x + 2, y + 2);
+        
+        // Pulsating text effect
+        const pulse = Math.sin(Date.now() / 150) * 0.2 + 0.8; // Values between 0.6 and 1.0
+        ctx.globalAlpha = pulse;
+        
+        ctx.fillStyle = '#1af';
+        ctx.fillText(message, x, y);
+        
+        ctx.restore();
+      }
+      
+      // Add pixelated screen effect
+      renderScreenEffect() {
+        // Scanlines effect
+        const scanlineHeight = 2;
+        const scanlineOpacity = 0.1;
+        this.ctx.fillStyle = `rgba(0, 0, 0, ${scanlineOpacity})`;
+        
+        for (let y = 0; y < this.canvas.height; y += scanlineHeight * 2) {
+          this.ctx.fillRect(0, y, this.canvas.width, scanlineHeight);
+        }
+        
+        // CRT vignette effect (darker corners)
+        const gradient = this.ctx.createRadialGradient(
+          this.canvas.width / 2, this.canvas.height / 2, 
+          this.canvas.height * 0.3,
+          this.canvas.width / 2, this.canvas.height / 2, 
+          this.canvas.height * 0.8
+        );
+        gradient.addColorStop(0, 'rgba(0, 0, 0, 0)');
+        gradient.addColorStop(1, 'rgba(0, 0, 0, 0.4)');
+        
+        this.ctx.fillStyle = gradient;
+        this.ctx.globalCompositeOperation = 'multiply';
+        this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+        this.ctx.globalCompositeOperation = 'source-over';
+      }
+      
+      showVictoryScreen() {
+        // Stop the timer
+        clearInterval(this.timerInterval);
+        
+        // Create victory screen container
+        const victoryScreen = document.createElement('div');
+        victoryScreen.className = 'victory-screen';
+        
+        // Victory content
+        victoryScreen.innerHTML = `
+          <div class="victory-title">MISSION COMPLETE</div>
+          <div class="victory-message">YOU ESCAPED THE FOG OF WAR</div>
+          <div class="victory-stats">KEYS COLLECTED: ${this.player.keys}/${this.keyCount}</div>
+          <div class="victory-stats">TIME REMAINING: ${document.getElementById('timerDisplay').textContent}</div>
+          <button class="play-again-btn">PLAY AGAIN</button>
+        `;
+        
+        // Add to body
+        document.body.appendChild(victoryScreen);
+        
+        // Add event listener to play again button
+        const playAgainBtn = victoryScreen.querySelector('.play-again-btn');
+        playAgainBtn.addEventListener('click', () => {
+          document.body.removeChild(victoryScreen);
+          this.init();
+        });
+        
+        // Add CSS dynamically if needed
+        if (!document.getElementById('victory-styles')) {
+          const victoryStyles = document.createElement('style');
+          victoryStyles.id = 'victory-styles';
+          victoryStyles.textContent = `
+            .victory-screen {
+              position: fixed;
+              top: 0;
+              left: 0;
+              width: 100vw;
+              height: 100vh;
+              background-color: rgba(10, 10, 18, 0.9);
+              display: flex;
+              flex-direction: column;
+              justify-content: center;
+              align-items: center;
+              z-index: 1000;
+              font-family: 'VT323', monospace;
+              animation: victory-fade-in 0.5s ease-in;
+            }
+            
+            .victory-title {
+              font-size: 48px;
+              color: #5af;
+              margin-bottom: 20px;
+              text-shadow: 3px 3px 0px #102030;
+              animation: victory-pulse 2s infinite;
+            }
+            
+            .victory-message {
+              font-size: 32px;
+              color: #9acdff;
+              margin-bottom: 40px;
+              text-shadow: 2px 2px 0px #102030;
+            }
+            
+            .victory-stats {
+              font-size: 24px;
+              color: #7ab;
+              margin-bottom: 30px;
+            }
+            
+            .play-again-btn {
+              padding: 12px 24px;
+              background-color: #304050;
+              border: 2px solid #506070;
+              color: #9acdff;
+              font-size: 24px;
+              font-family: 'VT323', monospace;
+              cursor: pointer;
+              transition: all 0.2s;
+            }
+            
+            .play-again-btn:hover {
+              background-color: #405060;
+              transform: scale(1.05);
+            }
+            
+            @keyframes victory-pulse {
+              0% { transform: scale(1); text-shadow: 3px 3px 0px #102030; }
+              50% { transform: scale(1.05); text-shadow: 4px 4px 0px #0c1620; }
+              100% { transform: scale(1); text-shadow: 3px 3px 0px #102030; }
+            }
+            
+            @keyframes victory-fade-in {
+              0% { opacity: 0; }
+              100% { opacity: 1; }
+            }
+          `;
+          document.head.appendChild(victoryStyles);
+        }
+      }
+    }
+    
+    // Start game when DOM is loaded
+    document.addEventListener('DOMContentLoaded', () => {
+      const game = new Game('mazeCanvas');
+      
+      // Add game instructions with pixelated styling
+      const gameContainer = document.querySelector('.game-container');
+      const instructions = document.createElement('div');
+      instructions.className = 'instructions';
+      instructions.innerHTML = `
+        <p>► USE ARROW KEYS TO MOVE</p>
+        <p>► COLLECT ALL KEYS (${game.keyCount}) TO UNLOCK THE EXIT</p>
+        <p>► FIND POWER-UPS TO HELP YOUR ESCAPE</p>
+        <p>► BEAT THE CLOCK BEFORE TIME RUNS OUT</p>
+        <p>► PRESS F TO TOGGLE FOG-OF-WAR</p>
+        <p>► PRESS R TO RESET THE MAZE</p>
+      `;
+      gameContainer.appendChild(instructions);
+      
+      // Add pixel grain effect to entire page
+      const pixelOverlay = document.createElement('div');
+      pixelOverlay.className = 'pixel-overlay';
+      document.body.appendChild(pixelOverlay);
+    });
+  </script>
 </body>
 </html>
