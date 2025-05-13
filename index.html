@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>MAYZE - Gothic Cave Maze Game</title>
+  <title>MAYZE - Jungle Maze Adventure</title>
   <link rel="icon" href="public/icons/favicon.ico">
   <link rel="icon" type="image/png" sizes="16x16" href="public/icons/favicon-16x16.png">
   <link rel="icon" type="image/png" sizes="32x32" href="public/icons/favicon-32x32.png">
@@ -35,6 +35,7 @@
       <canvas id="mazeCanvas"></canvas>
       <div class="stats">
         <span>KEYS: <span id="keyCount">0</span>/3</span>
+        <span style="margin-left: 20px;">POWER-UPS: <span id="powerupCount">0</span>/3</span>
       </div>
       
       <!-- Mobile controls -->
@@ -55,6 +56,9 @@
     </div>
   </section>
 
+  <!-- Hidden elements for drawing -->
+  <img id="key-icon" hidden src="public/icons/key.svg">
+
   <!-- Victory Modal -->
   <div id="victory-modal">
     <div class="victory-card">
@@ -71,6 +75,7 @@
     let startTime, timerInterval;
     let bestTime = localStorage.getItem('mayze-best-time') || Infinity;
     let isGameActive = false;
+    let powerUpRotation = 0;
 
     // PowerUp class
     class PowerUp {
@@ -79,19 +84,6 @@
         this.x = x;
         this.y = y;
         this.collected = false;
-        
-        // Properties based on type
-        switch(type) {
-          case 'speed':
-            this.color = '#16f2ff'; // Teal for speed
-            break;
-          case 'time':
-            this.color = '#16f2ff'; // Teal for time
-            break;
-          case 'reveal':
-            this.color = '#16f2ff'; // Teal for reveal
-            break;
-        }
       }
       
       render(ctx, cellSize, maze) {
@@ -115,27 +107,27 @@
         const centerY = this.y * cellSize + cellSize / 2;
         
         // Power-up size (80% of cell)
-        const size = cellSize * 0.8;
+        const size = cellSize * 0.6;
+        const radius = size / 2;
         
-        // Pulsating effect
-        const pulse = Math.sin(Date.now() / 200) * 0.1 + 0.9; // Subtle pulse between 0.8 and 1.0
-        ctx.globalAlpha *= pulse;
+        // Save context state for rotation
+        ctx.save();
+        ctx.translate(centerX, centerY);
+        ctx.rotate(powerUpRotation * Math.PI / 180);
         
         // Draw power-up with strong glow effect
-        ctx.fillStyle = this.color;
-        ctx.shadowColor = this.color;
+        ctx.fillStyle = '#16f2ff';
+        ctx.shadowColor = '#16f2ff';
         ctx.shadowBlur = 12; // Increased glow
         
-        // Draw as a glowing square
-        ctx.fillRect(
-          centerX - size/2,
-          centerY - size/2,
-          size,
-          size
-        );
+        // Draw as a glowing circle
+        ctx.beginPath();
+        ctx.arc(0, 0, radius, 0, Math.PI * 2);
+        ctx.fill();
         
         // Reset shadow
         ctx.shadowBlur = 0;
+        ctx.restore();
         ctx.globalAlpha = 1.0;
       }
     }
@@ -154,14 +146,14 @@
         this.visibilityRadius = 3; // How far the player can see
         this.exploredOpacity = 0.4; // 40% opacity for explored areas
         
-        // Colors for the pixelated cave/gothic style
+        // Colors for the pixelated jungle/slate style
         this.colors = {
-          background: '#0a0a12',
-          wall: '#1b1f23', // Dark slate color
-          wallShade: '#17191d',
-          explored: '#131318',
-          pathlight: '#1a1a25',
-          outOfBounds: '#080810'
+          background: '#0c130e',
+          wall: '#1a1f1c', // Dark slate with green tint
+          wallShade: '#151a17',
+          explored: '#0e1510',
+          pathlight: '#121d14',
+          outOfBounds: '#080c09'
         };
         
         // Player tracking
@@ -304,12 +296,12 @@
             if (isExplored || !this.fogOfWarEnabled || isEntrance || isExit) {
               // Special treatment for entrance and exit
               if (isEntrance) {
-                // Entrance - purple portal
-                ctx.fillStyle = '#3a2a4a';
+                // Entrance - green jungle portal
+                ctx.fillStyle = '#125429';
                 ctx.fillRect(startX, startY, this.cellSize, this.cellSize);
                 
                 // Portal effect
-                ctx.fillStyle = '#533a6d';
+                ctx.fillStyle = '#17ff6b';
                 ctx.fillRect(startX + this.cellSize * 0.2, startY + this.cellSize * 0.2, 
                             this.cellSize * 0.6, this.cellSize * 0.6);
                             
@@ -320,12 +312,12 @@
                 ctx.fillText('IN', startX + this.cellSize/2, startY + this.cellSize/1.5);
               } 
               else if (isExit) {
-                // Exit - teal portal
-                ctx.fillStyle = '#0a4a5c';
+                // Exit - green jungle portal
+                ctx.fillStyle = '#125429';
                 ctx.fillRect(startX, startY, this.cellSize, this.cellSize);
                 
                 // Portal effect
-                ctx.fillStyle = '#10788e';
+                ctx.fillStyle = '#17ff6b';
                 ctx.fillRect(startX + this.cellSize * 0.2, startY + this.cellSize * 0.2, 
                             this.cellSize * 0.6, this.cellSize * 0.6);
                             
@@ -340,9 +332,9 @@
                 ctx.fillStyle = isVisible ? this.colors.pathlight : this.colors.explored;
                 ctx.fillRect(startX, startY, this.cellSize, this.cellSize);
                 
-                // Add pixelated noise texture to the cell
+                // Add pixelated noise texture to the cell (moss-like speckles)
                 if (isVisible) {
-                  ctx.fillStyle = this.colors.pathlight;
+                  ctx.fillStyle = '#182820';
                   for (let i = 0; i < 3; i++) {
                     const noiseX = startX + Math.floor(Math.random() * this.cellSize);
                     const noiseY = startY + Math.floor(Math.random() * this.cellSize);
@@ -620,20 +612,20 @@
         const offsetX = (cellSize - playerSize) / 2;
         const offsetY = (cellSize - playerSize) / 2;
     
-        // Draw player base (character sprite) - pixelated style with purple theme
-        // Character body
-        ctx.fillStyle = this.speedBoost ? '#9370db' : '#614695'; // Brighter purple when speed boosted
+        // Draw player base (character sprite) - pixelated style with jungle theme
+        // Character body (explorer)
+        ctx.fillStyle = this.speedBoost ? '#b8e1b5' : '#94c089'; // Brighter green when speed boosted
         ctx.fillRect(startX + offsetX, startY + offsetY, playerSize, playerSize);
         
         // Inner details (pixelated face)
-        ctx.fillStyle = this.speedBoost ? '#b19cd9' : '#7c5cb7';
+        ctx.fillStyle = this.speedBoost ? '#deffda' : '#b0d6a9';
         const headSize = playerSize * 0.6;
         const headOffsetX = (cellSize - headSize) / 2;
         const headOffsetY = (cellSize - headSize) / 2;
         ctx.fillRect(startX + headOffsetX, startY + headOffsetY, headSize, headSize);
         
         // Eyes
-        ctx.fillStyle = '#fff';
+        ctx.fillStyle = '#222';
         const eyeSize = Math.max(2, Math.floor(cellSize / 10));
         // Left eye
         ctx.fillRect(startX + headOffsetX + headSize * 0.25 - eyeSize/2, 
@@ -641,6 +633,11 @@
         // Right eye
         ctx.fillRect(startX + headOffsetX + headSize * 0.75 - eyeSize/2, 
                      startY + headOffsetY + headSize * 0.35, eyeSize, eyeSize);
+        
+        // Add explorer hat
+        ctx.fillStyle = '#83581b';
+        ctx.fillRect(startX + headOffsetX - eyeSize, startY + headOffsetY - eyeSize, 
+                     headSize + eyeSize*2, eyeSize*2);
         
         // Add light effect (glow) around the player
         ctx.beginPath();
@@ -652,11 +649,11 @@
         );
         
         if (this.speedBoost) {
-          gradient.addColorStop(0, 'rgba(147, 112, 219, 0.5)');
-          gradient.addColorStop(1, 'rgba(147, 112, 219, 0)');
+          gradient.addColorStop(0, 'rgba(23, 255, 107, 0.5)');
+          gradient.addColorStop(1, 'rgba(23, 255, 107, 0)');
         } else {
-          gradient.addColorStop(0, 'rgba(97, 70, 149, 0.4)');
-          gradient.addColorStop(1, 'rgba(97, 70, 149, 0)');
+          gradient.addColorStop(0, 'rgba(23, 200, 107, 0.4)');
+          gradient.addColorStop(1, 'rgba(23, 200, 107, 0)');
         }
         
         ctx.fillStyle = gradient;
@@ -741,6 +738,7 @@
     
       render(ctx) {
         const cellSize = this.maze.cellSize;
+        const keyIcon = document.getElementById('key-icon');
         
         for (let i = 0; i < this.items.length; i++) {
           const item = this.items[i];
@@ -765,44 +763,37 @@
           const centerX = item.x * cellSize + cellSize / 2;
           const centerY = item.y * cellSize + cellSize / 2;
           
-          // Draw key (pixelated style) - teal color
+          // Pulsating effect for key (0.85 to 1.0 opacity)
+          const pulse = 0.85 + Math.sin(Date.now() / 400) * 0.075;
+          ctx.globalAlpha *= pulse;
+          
+          // Draw key (gold square with key icon)
           const keySize = cellSize * 0.6;
           const keyX = centerX - keySize / 2;
           const keyY = centerY - keySize / 2;
           
-          // Key base
-          ctx.fillStyle = '#0aafce';
+          // Key base (gold square)
+          ctx.fillStyle = '#ffd644';
+          ctx.shadowColor = '#ffd644';
+          ctx.shadowBlur = 6;
           ctx.fillRect(keyX, keyY, keySize, keySize);
           
-          // Key details
-          ctx.fillStyle = '#16f2ff';
-          ctx.fillRect(keyX + keySize * 0.2, keyY + keySize * 0.2, keySize * 0.6, keySize * 0.6);
+          // Draw key icon in the middle
+          if (keyIcon) {
+            const iconSize = keySize * 0.8;
+            ctx.drawImage(keyIcon, 
+                        keyX + (keySize - iconSize) / 2, 
+                        keyY + (keySize - iconSize) / 2,
+                        iconSize, iconSize);
+          } else {
+            // Fallback if icon is not loaded - simple key shape
+            ctx.fillStyle = '#9e7e0e';
+            const smallKeySize = keySize * 0.5;
+            ctx.fillRect(keyX + keySize * 0.25, keyY + keySize * 0.25, smallKeySize, smallKeySize);
+            ctx.fillRect(keyX + keySize * 0.5, keyY + keySize * 0.75, smallKeySize * 0.5, smallKeySize * 0.25);
+          }
           
-          // Key teeth (pixelated)
-          ctx.fillStyle = '#a0ffff';
-          const teethSize = Math.max(2, Math.floor(cellSize / 10));
-          ctx.fillRect(keyX + keySize * 0.3, keyY + keySize * 0.3, teethSize, teethSize);
-          ctx.fillRect(keyX + keySize * 0.6, keyY + keySize * 0.4, teethSize, teethSize);
-          ctx.fillRect(keyX + keySize * 0.4, keyY + keySize * 0.6, teethSize, teethSize);
-          
-          // Add glow effect
-          ctx.beginPath();
-          ctx.arc(centerX, centerY, keySize * 0.8, 0, Math.PI * 2);
-          const gradient = ctx.createRadialGradient(
-            centerX, centerY, 0,
-            centerX, centerY, keySize * 0.8
-          );
-          gradient.addColorStop(0, 'rgba(22, 242, 255, 0.4)');
-          gradient.addColorStop(1, 'rgba(10, 175, 206, 0)');
-          ctx.fillStyle = gradient;
-          ctx.fill();
-          
-          // Extra glow effect
-          ctx.shadowColor = '#16f2ff';
-          ctx.shadowBlur = 6;
-          ctx.strokeStyle = 'rgba(22, 242, 255, 0.7)';
-          ctx.lineWidth = 1;
-          ctx.strokeRect(keyX, keyY, keySize, keySize);
+          // Reset shadow
           ctx.shadowBlur = 0;
         }
         
@@ -821,7 +812,10 @@
         this.cellSize = cellSize;
         this.keyCount = 3;
         
-        // New variables for countdown timer and power-ups
+        // Power-up tracking
+        this.collectedPowerUps = 0;
+        
+        // Other variables
         this.countdownTimer = 180; // 3 minutes in seconds
         this.timerInterval = null;
         this.powerUps = [];
@@ -852,6 +846,8 @@
         // Reset game state
         this.gameOver = false;
         this.currentMessage = '';
+        this.collectedPowerUps = 0;
+        document.getElementById('powerupCount').textContent = '0';
         if (this.messageTimeout) clearTimeout(this.messageTimeout);
         this.player.enableMovement();
         
@@ -1068,6 +1064,8 @@
           if (!powerUp.collected && powerUp.x === this.player.x && powerUp.y === this.player.y) {
             this.applyPowerUp(powerUp);
             powerUp.collected = true;
+            this.collectedPowerUps++;
+            document.getElementById('powerupCount').textContent = this.collectedPowerUps;
           }
         }
       }
@@ -1137,6 +1135,9 @@
         const deltaTime = timestamp - this.lastTime;
         this.lastTime = timestamp;
         
+        // Update rotation angle for power-ups
+        powerUpRotation = (powerUpRotation + 0.5) % 360;
+        
         // Clear canvas
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
         
@@ -1190,7 +1191,7 @@
         const pulse = Math.sin(Date.now() / 150) * 0.2 + 0.8; // Values between 0.6 and 1.0
         ctx.globalAlpha = pulse;
         
-        ctx.fillStyle = '#16f2ff';
+        ctx.fillStyle = '#17ff6b';
         ctx.fillText(message, x, y);
         
         ctx.restore();
@@ -1346,6 +1347,6 @@
   </script>
   
   <!-- Background Audio -->
-  <audio id="bgm" src="public/sounds/cave-ambience.mp3" loop></audio>
+  <audio id="bgm" src="public/sounds/jungle-ambience.mp3" loop></audio>
 </body>
 </html>

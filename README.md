@@ -1,8 +1,16 @@
-# MAYZE - Gothic Cave Maze Game
+# MAYZE - Jungle Maze Adventure
 
-A retro-style maze game with a dark cave/gothic castle aesthetic, featuring fog-of-war mechanics, collectibles, and timed challenges.
+A retro-style maze game with an immersive jungle aesthetic, featuring fog-of-war mechanics, collectibles, and timed challenges.
 
 ## Features
+
+- **Jungle Theme Update (v1.3)**
+  - 🌿 Mossy stone walls with lush green accents
+  - 🔑 Golden keys with key glyph icon
+  - 🔵 Cyan rotating power-ups with distinctive effects
+  - 🎮 Updated HUD showing collected power-ups
+  - 🎵 Immersive jungle ambient sounds
+  - 🌴 Rich jungle gradient background
 
 - **Dark Cave Theme Update (v1.2)**
   - 🏰 Dark slate stone walls with purple accents
@@ -16,12 +24,13 @@ A retro-style maze game with a dark cave/gothic castle aesthetic, featuring fog-
 
 ## Game Mechanics
 
-- Navigate through the procedurally generated maze
-- Collect all 3 keys to unlock the exit
-- Pick up power-ups to help your escape:
+- Navigate through the procedurally generated jungle maze
+- Collect all 3 golden keys to unlock the exit
+- Pick up distinct cyan rotating power-ups to help your escape:
   - **Speed Boost**: Doubles movement speed for 5 seconds
   - **Time Bonus**: Adds 15 seconds to your timer
   - **Reveal Map**: Temporarily shows the entire maze for 8 seconds
+- Track your collected power-ups in the HUD
 - Beat your best time to set a new record
 
 ## Controls
